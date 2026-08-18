@@ -27,6 +27,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from dxenv.data.corpus import PatientRecord, generate_corpus
+from dxenv.data.taxonomy import load_taxonomy
+from dxenv.env.catalog import CategoricalAnalyte, load_catalog
+from dxenv.reward.scoring import brier_score, severity_weight
 from sklearn.compose import ColumnTransformer
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
@@ -34,11 +38,6 @@ from sklearn.metrics import balanced_accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-
-from dxenv.data.corpus import PatientRecord, generate_corpus
-from dxenv.data.taxonomy import load_taxonomy
-from dxenv.env.catalog import CategoricalAnalyte, load_catalog
-from dxenv.reward.scoring import brier_score, severity_weight
 
 RESULTS_PATH = Path("runs/phase0/results.json")
 GATE_PATH = Path("dxenv/configs/gate_a.yaml")
@@ -147,7 +146,7 @@ def main() -> int:
     print(f"generating {args.n} patients ...")
     records = generate_corpus(args.n, seed=args.seed)
 
-    vital_keys = [k for k in cat.vital_keys]
+    vital_keys = list(cat.vital_keys)
     all_keys = vital_keys + list(cat.analyte_keys)
 
     probes: list[ProbeResult] = []

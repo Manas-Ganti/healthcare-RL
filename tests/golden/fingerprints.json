@@ -1,0 +1,9 @@
+{
+  "label_set_hash": "2f762a7a0f71e5db9356550730e3974feceefe4ccd3b88829b7296b3fbc7b8f3",
+  "menu_fingerprint": "efcefd976248fe606e09f0d7321464371056c3f4eae5ea2a82cc014b482e3494",
+  "episode_config_hash": "a242e6471e4ca940672133e00692acc68328f0468dbbf743feea898e47e989b8",
+  "reward_config_hash": "f3fb9de9f1161d48dd727ae5b8e4172016194f31561cb275c455e271f9a2fbeb",
+  "n_labels": 149,
+  "n_tests": 73,
+  "n_treatments": 72
+}

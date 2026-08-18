@@ -1,0 +1,842 @@
+[
+  {
+    "condition": "upper_respiratory_infection",
+    "patient_id": "synth-314159-000000",
+    "reward": {
+      "contraindications": [],
+      "diagnosis": -0.3285441383327087,
+      "n_tests_charged": 3,
+      "n_turns": 5,
+      "shaping": 0.0,
+      "termination_reason": "diagnose",
+      "test_cost": -0.068,
+      "total": -0.0005808930008328137,
+      "treatment": 0.5,
+      "turn_penalty": -0.1,
+      "verify": -0.004036754668124096
+    },
+    "trajectory": {
+      "budget": 150.0,
+      "config_hash": "a242e6471e4ca940672133e00692acc68328f0468dbbf743feea898e47e989b8",
+      "menu_fingerprint": "efcefd976248fe606e09f0d7321464371056c3f4eae5ea2a82cc014b482e3494",
+      "patient_id": "synth-314159-000000",
+      "seed": 0,
+      "spent": 17.0,
+      "steps": [
+        {
+          "action": {
+            "action_id": "order_test:318d10df1f94dae7",
+            "kind": "order_test",
+            "prediction": "normal",
+            "test_key": "cbc"
+          },
+          "cost_charged": 5.0,
+          "revealed": [
+            {
+              "analyte": "hemoglobin",
+              "display": "Hemoglobin",
+              "ref_high": 17.0,
+              "ref_low": 12.0,
+              "unit": "g/dL",
+              "value_code": null,
+              "value_number": 11.8754
+            },
+            {
+              "analyte": "mcv",
+              "display": "Mean corpuscular volume",
+              "ref_high": 100.0,
+              "ref_low": 80.0,
+              "unit": "fL",
+              "value_code": null,
+              "value_number": 88.2083
+            },
+            {
+              "analyte": "wbc",
+              "display": "White blood cell count",
+              "ref_high": 11.0,
+              "ref_low": 4.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 8.2923
+            },
+            {
+              "analyte": "neutrophil_pct",
+              "display": "Neutrophil percentage",
+              "ref_high": 75.0,
+              "ref_low": 40.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 66.7663
+            },
+            {
+              "analyte": "lymphocyte_pct",
+              "display": "Lymphocyte percentage",
+              "ref_high": 45.0,
+              "ref_low": 20.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 25.1121
+            },
+            {
+              "analyte": "platelets",
+              "display": "Platelet count",
+              "ref_high": 400.0,
+              "ref_low": 150.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 234.8471
+            }
+          ],
+          "turn": 1,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:d2e1ea07df29a918",
+            "kind": "order_test",
+            "prediction": "high",
+            "test_key": "troponin"
+          },
+          "cost_charged": 9.0,
+          "revealed": [
+            {
+              "analyte": "troponin",
+              "display": "High-sensitivity troponin T",
+              "ref_high": 14.0,
+              "ref_low": 0.0,
+              "unit": "ng/L",
+              "value_code": null,
+              "value_number": 4.9624
+            }
+          ],
+          "turn": 2,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:a9fb899e11602c3b",
+            "kind": "order_test",
+            "prediction": "normal_categorical",
+            "test_key": "ecg"
+          },
+          "cost_charged": 3.0,
+          "revealed": [
+            {
+              "analyte": "ecg_finding",
+              "display": "ECG interpretation",
+              "ref_high": null,
+              "ref_low": null,
+              "unit": "",
+              "value_code": "normal_sinus",
+              "value_number": null
+            }
+          ],
+          "turn": 3,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "prescribe:576d54274aea67fa",
+            "kind": "prescribe",
+            "treatment_key": "levothyroxine"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 4,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "diagnose:245ee55e9555ff2f",
+            "distribution": {
+              "anemia_of_chronic_disease": 0.0954364791657655,
+              "chronic_kidney_disease": 0.17563577209426073,
+              "hypothyroidism": 0.507254420988717,
+              "normal_pregnancy": 0.11106383261706447,
+              "type_2_diabetes": 0.11060949513419231
+            },
+            "kind": "diagnose"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 5,
+          "was_duplicate": false
+        }
+      ],
+      "terminated": true,
+      "termination_reason": "diagnose"
+    }
+  },
+  {
+    "condition": "allergic_rhinitis",
+    "patient_id": "synth-314159-000001",
+    "reward": {
+      "contraindications": [],
+      "diagnosis": -0.13881648438533556,
+      "n_tests_charged": 3,
+      "n_turns": 5,
+      "shaping": 0.0,
+      "termination_reason": "diagnose",
+      "test_cost": -0.068,
+      "total": 0.19414676094654032,
+      "treatment": 0.5,
+      "turn_penalty": -0.1,
+      "verify": 0.0009632453318759041
+    },
+    "trajectory": {
+      "budget": 150.0,
+      "config_hash": "a242e6471e4ca940672133e00692acc68328f0468dbbf743feea898e47e989b8",
+      "menu_fingerprint": "efcefd976248fe606e09f0d7321464371056c3f4eae5ea2a82cc014b482e3494",
+      "patient_id": "synth-314159-000001",
+      "seed": 1,
+      "spent": 17.0,
+      "steps": [
+        {
+          "action": {
+            "action_id": "order_test:318d10df1f94dae7",
+            "kind": "order_test",
+            "prediction": "normal",
+            "test_key": "cbc"
+          },
+          "cost_charged": 5.0,
+          "revealed": [
+            {
+              "analyte": "hemoglobin",
+              "display": "Hemoglobin",
+              "ref_high": 17.0,
+              "ref_low": 12.0,
+              "unit": "g/dL",
+              "value_code": null,
+              "value_number": 14.2947
+            },
+            {
+              "analyte": "mcv",
+              "display": "Mean corpuscular volume",
+              "ref_high": 100.0,
+              "ref_low": 80.0,
+              "unit": "fL",
+              "value_code": null,
+              "value_number": 90.1639
+            },
+            {
+              "analyte": "wbc",
+              "display": "White blood cell count",
+              "ref_high": 11.0,
+              "ref_low": 4.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 7.3983
+            },
+            {
+              "analyte": "neutrophil_pct",
+              "display": "Neutrophil percentage",
+              "ref_high": 75.0,
+              "ref_low": 40.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 64.8924
+            },
+            {
+              "analyte": "lymphocyte_pct",
+              "display": "Lymphocyte percentage",
+              "ref_high": 45.0,
+              "ref_low": 20.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 23.2136
+            },
+            {
+              "analyte": "platelets",
+              "display": "Platelet count",
+              "ref_high": 400.0,
+              "ref_low": 150.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 253.3445
+            }
+          ],
+          "turn": 1,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:d2e1ea07df29a918",
+            "kind": "order_test",
+            "prediction": "high",
+            "test_key": "troponin"
+          },
+          "cost_charged": 9.0,
+          "revealed": [
+            {
+              "analyte": "troponin",
+              "display": "High-sensitivity troponin T",
+              "ref_high": 14.0,
+              "ref_low": 0.0,
+              "unit": "ng/L",
+              "value_code": null,
+              "value_number": 5.9936
+            }
+          ],
+          "turn": 2,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:a9fb899e11602c3b",
+            "kind": "order_test",
+            "prediction": "normal_categorical",
+            "test_key": "ecg"
+          },
+          "cost_charged": 3.0,
+          "revealed": [
+            {
+              "analyte": "ecg_finding",
+              "display": "ECG interpretation",
+              "ref_high": null,
+              "ref_low": null,
+              "unit": "",
+              "value_code": "normal_sinus",
+              "value_number": null
+            }
+          ],
+          "turn": 3,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "prescribe:524e8edd6fec8c0b",
+            "kind": "prescribe",
+            "treatment_key": "atorvastatin"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 4,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "diagnose:245ee55e9555ff2f",
+            "distribution": {
+              "allergic_rhinitis": 0.06423389436500769,
+              "dyslipidemia": 0.3509822603148204,
+              "essential_hypertension": 0.28533372734963164,
+              "nonalcoholic_fatty_liver": 0.09053130535001173,
+              "type_2_diabetes": 0.20891881262052847
+            },
+            "kind": "diagnose"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 5,
+          "was_duplicate": false
+        }
+      ],
+      "terminated": true,
+      "termination_reason": "diagnose"
+    }
+  },
+  {
+    "condition": "vitamin_d_deficiency",
+    "patient_id": "synth-314159-000002",
+    "reward": {
+      "contraindications": [],
+      "diagnosis": 0.17127170338432007,
+      "n_tests_charged": 3,
+      "n_turns": 5,
+      "shaping": 0.0,
+      "termination_reason": "diagnose",
+      "test_cost": -0.068,
+      "total": 0.5042349487161959,
+      "treatment": 0.5,
+      "turn_penalty": -0.1,
+      "verify": 0.0009632453318759041
+    },
+    "trajectory": {
+      "budget": 150.0,
+      "config_hash": "a242e6471e4ca940672133e00692acc68328f0468dbbf743feea898e47e989b8",
+      "menu_fingerprint": "efcefd976248fe606e09f0d7321464371056c3f4eae5ea2a82cc014b482e3494",
+      "patient_id": "synth-314159-000002",
+      "seed": 2,
+      "spent": 17.0,
+      "steps": [
+        {
+          "action": {
+            "action_id": "order_test:318d10df1f94dae7",
+            "kind": "order_test",
+            "prediction": "normal",
+            "test_key": "cbc"
+          },
+          "cost_charged": 5.0,
+          "revealed": [
+            {
+              "analyte": "hemoglobin",
+              "display": "Hemoglobin",
+              "ref_high": 17.0,
+              "ref_low": 12.0,
+              "unit": "g/dL",
+              "value_code": null,
+              "value_number": 14.1618
+            },
+            {
+              "analyte": "mcv",
+              "display": "Mean corpuscular volume",
+              "ref_high": 100.0,
+              "ref_low": 80.0,
+              "unit": "fL",
+              "value_code": null,
+              "value_number": 92.7779
+            },
+            {
+              "analyte": "wbc",
+              "display": "White blood cell count",
+              "ref_high": 11.0,
+              "ref_low": 4.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 5.6983
+            },
+            {
+              "analyte": "neutrophil_pct",
+              "display": "Neutrophil percentage",
+              "ref_high": 75.0,
+              "ref_low": 40.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 54.3617
+            },
+            {
+              "analyte": "lymphocyte_pct",
+              "display": "Lymphocyte percentage",
+              "ref_high": 45.0,
+              "ref_low": 20.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 34.94
+            },
+            {
+              "analyte": "platelets",
+              "display": "Platelet count",
+              "ref_high": 400.0,
+              "ref_low": 150.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 291.842
+            }
+          ],
+          "turn": 1,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:d2e1ea07df29a918",
+            "kind": "order_test",
+            "prediction": "high",
+            "test_key": "troponin"
+          },
+          "cost_charged": 9.0,
+          "revealed": [
+            {
+              "analyte": "troponin",
+              "display": "High-sensitivity troponin T",
+              "ref_high": 14.0,
+              "ref_low": 0.0,
+              "unit": "ng/L",
+              "value_code": null,
+              "value_number": 11.1308
+            }
+          ],
+          "turn": 2,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:a9fb899e11602c3b",
+            "kind": "order_test",
+            "prediction": "normal_categorical",
+            "test_key": "ecg"
+          },
+          "cost_charged": 3.0,
+          "revealed": [
+            {
+              "analyte": "ecg_finding",
+              "display": "ECG interpretation",
+              "ref_high": null,
+              "ref_low": null,
+              "unit": "",
+              "value_code": "normal_sinus",
+              "value_number": null
+            }
+          ],
+          "turn": 3,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "prescribe:0e8b06e4431919d3",
+            "kind": "prescribe",
+            "treatment_key": "metformin"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 4,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "diagnose:245ee55e9555ff2f",
+            "distribution": {
+              "dyslipidemia": 0.13129529939002016,
+              "major_depressive_disorder": 0.22757368937389036,
+              "obstructive_sleep_apnea": 0.13159077114230994,
+              "type_2_diabetes": 0.3094759557783549,
+              "vitamin_d_deficiency": 0.20006428431542467
+            },
+            "kind": "diagnose"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 5,
+          "was_duplicate": false
+        }
+      ],
+      "terminated": true,
+      "termination_reason": "diagnose"
+    }
+  },
+  {
+    "condition": "copd_exacerbation",
+    "patient_id": "synth-314159-000003",
+    "reward": {
+      "contraindications": [],
+      "diagnosis": -0.717923901587255,
+      "n_tests_charged": 3,
+      "n_turns": 5,
+      "shaping": 0.0,
+      "termination_reason": "diagnose",
+      "test_cost": -0.068,
+      "total": -0.37596065625537906,
+      "treatment": 0.5,
+      "turn_penalty": -0.1,
+      "verify": 0.009963245331875904
+    },
+    "trajectory": {
+      "budget": 150.0,
+      "config_hash": "a242e6471e4ca940672133e00692acc68328f0468dbbf743feea898e47e989b8",
+      "menu_fingerprint": "efcefd976248fe606e09f0d7321464371056c3f4eae5ea2a82cc014b482e3494",
+      "patient_id": "synth-314159-000003",
+      "seed": 3,
+      "spent": 17.0,
+      "steps": [
+        {
+          "action": {
+            "action_id": "order_test:318d10df1f94dae7",
+            "kind": "order_test",
+            "prediction": "normal",
+            "test_key": "cbc"
+          },
+          "cost_charged": 5.0,
+          "revealed": [
+            {
+              "analyte": "hemoglobin",
+              "display": "Hemoglobin",
+              "ref_high": 17.0,
+              "ref_low": 12.0,
+              "unit": "g/dL",
+              "value_code": null,
+              "value_number": 14.159
+            },
+            {
+              "analyte": "mcv",
+              "display": "Mean corpuscular volume",
+              "ref_high": 100.0,
+              "ref_low": 80.0,
+              "unit": "fL",
+              "value_code": null,
+              "value_number": 86.7041
+            },
+            {
+              "analyte": "wbc",
+              "display": "White blood cell count",
+              "ref_high": 11.0,
+              "ref_low": 4.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 7.6201
+            },
+            {
+              "analyte": "neutrophil_pct",
+              "display": "Neutrophil percentage",
+              "ref_high": 75.0,
+              "ref_low": 40.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 58.426
+            },
+            {
+              "analyte": "lymphocyte_pct",
+              "display": "Lymphocyte percentage",
+              "ref_high": 45.0,
+              "ref_low": 20.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 35.0668
+            },
+            {
+              "analyte": "platelets",
+              "display": "Platelet count",
+              "ref_high": 400.0,
+              "ref_low": 150.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 337.9743
+            }
+          ],
+          "turn": 1,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:d2e1ea07df29a918",
+            "kind": "order_test",
+            "prediction": "high",
+            "test_key": "troponin"
+          },
+          "cost_charged": 9.0,
+          "revealed": [
+            {
+              "analyte": "troponin",
+              "display": "High-sensitivity troponin T",
+              "ref_high": 14.0,
+              "ref_low": 0.0,
+              "unit": "ng/L",
+              "value_code": null,
+              "value_number": 15.6835
+            }
+          ],
+          "turn": 2,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:a9fb899e11602c3b",
+            "kind": "order_test",
+            "prediction": "normal_categorical",
+            "test_key": "ecg"
+          },
+          "cost_charged": 3.0,
+          "revealed": [
+            {
+              "analyte": "ecg_finding",
+              "display": "ECG interpretation",
+              "ref_high": null,
+              "ref_low": null,
+              "unit": "",
+              "value_code": "normal_sinus",
+              "value_number": null
+            }
+          ],
+          "turn": 3,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "prescribe:b40e308bd24cba2d",
+            "kind": "prescribe",
+            "treatment_key": "no_pharmacotherapy"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 4,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "diagnose:245ee55e9555ff2f",
+            "distribution": {
+              "acute_bronchitis": 0.2926766493286207,
+              "allergic_rhinitis": 0.17252976247402185,
+              "asthma_exacerbation": 0.11683283572722418,
+              "gastroesophageal_reflux": 0.18430079923596984,
+              "upper_respiratory_infection": 0.23365995323416347
+            },
+            "kind": "diagnose"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 5,
+          "was_duplicate": false
+        }
+      ],
+      "terminated": true,
+      "termination_reason": "diagnose"
+    }
+  },
+  {
+    "condition": "myocarditis",
+    "patient_id": "synth-314159-000004",
+    "reward": {
+      "contraindications": [],
+      "diagnosis": 5.959731476384353,
+      "n_tests_charged": 3,
+      "n_turns": 5,
+      "shaping": 0.0,
+      "termination_reason": "diagnose",
+      "test_cost": -0.068,
+      "total": 7.298619866406448,
+      "treatment": 1.4999251446902186,
+      "turn_penalty": -0.1,
+      "verify": 0.006963245331875905
+    },
+    "trajectory": {
+      "budget": 150.0,
+      "config_hash": "a242e6471e4ca940672133e00692acc68328f0468dbbf743feea898e47e989b8",
+      "menu_fingerprint": "efcefd976248fe606e09f0d7321464371056c3f4eae5ea2a82cc014b482e3494",
+      "patient_id": "synth-314159-000004",
+      "seed": 4,
+      "spent": 17.0,
+      "steps": [
+        {
+          "action": {
+            "action_id": "order_test:318d10df1f94dae7",
+            "kind": "order_test",
+            "prediction": "normal",
+            "test_key": "cbc"
+          },
+          "cost_charged": 5.0,
+          "revealed": [
+            {
+              "analyte": "hemoglobin",
+              "display": "Hemoglobin",
+              "ref_high": 17.0,
+              "ref_low": 12.0,
+              "unit": "g/dL",
+              "value_code": null,
+              "value_number": 14.0007
+            },
+            {
+              "analyte": "mcv",
+              "display": "Mean corpuscular volume",
+              "ref_high": 100.0,
+              "ref_low": 80.0,
+              "unit": "fL",
+              "value_code": null,
+              "value_number": 84.1482
+            },
+            {
+              "analyte": "wbc",
+              "display": "White blood cell count",
+              "ref_high": 11.0,
+              "ref_low": 4.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 8.3677
+            },
+            {
+              "analyte": "neutrophil_pct",
+              "display": "Neutrophil percentage",
+              "ref_high": 75.0,
+              "ref_low": 40.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 59.2306
+            },
+            {
+              "analyte": "lymphocyte_pct",
+              "display": "Lymphocyte percentage",
+              "ref_high": 45.0,
+              "ref_low": 20.0,
+              "unit": "%",
+              "value_code": null,
+              "value_number": 35.0464
+            },
+            {
+              "analyte": "platelets",
+              "display": "Platelet count",
+              "ref_high": 400.0,
+              "ref_low": 150.0,
+              "unit": "10^9/L",
+              "value_code": null,
+              "value_number": 347.1558
+            }
+          ],
+          "turn": 1,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:d2e1ea07df29a918",
+            "kind": "order_test",
+            "prediction": "high",
+            "test_key": "troponin"
+          },
+          "cost_charged": 9.0,
+          "revealed": [
+            {
+              "analyte": "troponin",
+              "display": "High-sensitivity troponin T",
+              "ref_high": 14.0,
+              "ref_low": 0.0,
+              "unit": "ng/L",
+              "value_code": null,
+              "value_number": 491.4942
+            }
+          ],
+          "turn": 2,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "order_test:a9fb899e11602c3b",
+            "kind": "order_test",
+            "prediction": "normal_categorical",
+            "test_key": "ecg"
+          },
+          "cost_charged": 3.0,
+          "revealed": [
+            {
+              "analyte": "ecg_finding",
+              "display": "ECG interpretation",
+              "ref_high": null,
+              "ref_low": null,
+              "unit": "",
+              "value_code": "low_voltage",
+              "value_number": null
+            }
+          ],
+          "turn": 3,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "prescribe:3cc851a0575983cf",
+            "kind": "prescribe",
+            "treatment_key": "supplemental_oxygen"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 4,
+          "was_duplicate": false
+        },
+        {
+          "action": {
+            "action_id": "diagnose:245ee55e9555ff2f",
+            "distribution": {
+              "acute_myocardial_infarction": 7.485530978148065e-05,
+              "acute_pericarditis": 8.616936153117833e-62,
+              "carbon_monoxide_poisoning": 1.5529859109776994e-46,
+              "hypertensive_emergency": 1.724289125986108e-52,
+              "myocarditis": 0.9999251446902185
+            },
+            "kind": "diagnose"
+          },
+          "cost_charged": 0.0,
+          "revealed": [],
+          "turn": 5,
+          "was_duplicate": false
+        }
+      ],
+      "terminated": true,
+      "termination_reason": "diagnose"
+    }
+  }
+]
