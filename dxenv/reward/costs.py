@@ -58,8 +58,14 @@ def load_cost_table(path: Path | None = None) -> CostTable:
     return CostTable(prices=prices)
 
 
-def test_cost_term(test_key: str, lam: float, table: CostTable | None = None) -> float:
-    """The cost contribution of ONE charged order. Always <= 0 [I5]."""
+def order_cost_term(
+    test_key: str, lam: float, table: CostTable | None = None
+) -> float:
+    """The cost contribution of ONE charged order. Always <= 0 [I5].
+
+    Named `order_cost_term`, not `test_cost_term`: the latter reads as a pytest case and
+    both pytest and ruff treat it as one.
+    """
     t = table or load_cost_table()
     if lam < 0.0:
         raise CostError("lambda must be non-negative; a negative lambda pays for testing")

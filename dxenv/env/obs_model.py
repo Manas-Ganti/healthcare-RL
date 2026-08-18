@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Final
 
 import numpy as np
+import numpy.typing as npt
 import yaml
 from scipy.special import ndtr, ndtri
 
@@ -60,8 +61,8 @@ class QuantTable:
     """Truncated-normal parameters for one analyte, indexed by condition."""
 
     analyte: str
-    mean: np.ndarray  # (n_conditions,)
-    sd: np.ndarray  # (n_conditions,)
+    mean: npt.NDArray[np.float64]  # (n_conditions,)
+    sd: npt.NDArray[np.float64]  # (n_conditions,)
     low: float
     high: float
 
@@ -76,7 +77,7 @@ class QuantTable:
         # Guard against ndtri saturating at the tails; bounds are a hard contract.
         return float(np.clip(x, self.low, self.high))
 
-    def log_likelihood(self, value: float) -> np.ndarray:
+    def log_likelihood(self, value: float) -> npt.NDArray[np.float64]:
         """log p(value | c) for every condition c, as a vector."""
         z = (value - self.mean) / self.sd
         log_phi = -0.5 * z * z - 0.5 * np.log(2.0 * np.pi) - np.log(self.sd)
@@ -90,20 +91,20 @@ class CatTable:
 
     analyte: str
     values: tuple[str, ...]
-    probs: np.ndarray
+    probs: npt.NDArray[np.float64]
 
     def sample(self, condition_idx: int, rng: np.random.Generator) -> str:
         row = self.probs[condition_idx]
         return self.values[int(rng.choice(len(self.values), p=row))]
 
-    def log_likelihood(self, value: str) -> np.ndarray:
+    def log_likelihood(self, value: str) -> npt.NDArray[np.float64]:
         try:
             j = self.values.index(value)
         except ValueError as exc:
             raise ObsModelError(
                 f"analyte {self.analyte!r} has no result value {value!r}"
             ) from exc
-        return np.log(self.probs[:, j])
+        return np.asarray(np.log(self.probs[:, j]), dtype=np.float64)
 
 
 AnalyteTable = QuantTable | CatTable
@@ -138,7 +139,9 @@ class ObservationModel:
         idx = self.condition_index(condition)
         return self.table(analyte).sample(idx, rng)
 
-    def log_likelihood_vector(self, analyte: str, value: ResultValue) -> np.ndarray:
+    def log_likelihood_vector(
+        self, analyte: str, value: ResultValue
+    ) -> npt.NDArray[np.float64]:
         t = self.table(analyte)
         if isinstance(t, QuantTable):
             if not isinstance(value, (int, float)):
@@ -155,7 +158,9 @@ class ObservationModel:
             raise ObsModelError(f"unknown condition {condition!r}") from exc
 
 
-def _smooth(probs: np.ndarray, eps: float = CATEGORICAL_EPSILON) -> np.ndarray:
+def _smooth(
+    probs: npt.NDArray[np.float64], eps: float = CATEGORICAL_EPSILON
+) -> npt.NDArray[np.float64]:
     k = probs.shape[-1]
     return (1.0 - eps) * probs + eps / k
 
@@ -169,7 +174,7 @@ def _load_overrides(path: Path | None = None) -> dict[str, dict[str, dict[str, f
 
 
 @lru_cache(maxsize=1)
-def build_observation_model(
+def build_observation_model(  # noqa: PLR0915 - one explicit branch per analyte kind
     overrides_path: Path | None = None, taxonomy: Taxonomy | None = None
 ) -> ObservationModel:
     """Materialise p(result | condition) for the full cross product.

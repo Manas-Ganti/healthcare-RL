@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Final
 
 import numpy as np
+import numpy.typing as npt
 import yaml
 
 from dxenv.data.taxonomy import Taxonomy, load_taxonomy
@@ -69,7 +70,7 @@ def uniform_offset(n: int) -> float:
     return 1.0 - 1.0 / n
 
 
-def brier_score(p: np.ndarray, true_idx: int) -> float:
+def brier_score(p: npt.NDArray[np.float64], true_idx: int) -> float:
     """Strictly proper, bounded, uniform-report-is-zero. Higher is better."""
     if p.ndim != 1:
         raise ScoringError("belief must be 1-D")
@@ -89,7 +90,7 @@ def brier_score(p: np.ndarray, true_idx: int) -> float:
 
 def distribution_to_vector(
     distribution: Mapping[str, float], taxonomy: Taxonomy | None = None
-) -> np.ndarray:
+) -> npt.NDArray[np.float64]:
     """Map a slug->probability report onto the canonical label ordering.
 
     Unlisted labels get exactly zero -- that is the agent's assertion, not a default.
@@ -131,7 +132,9 @@ def terminal_diagnosis_score(
     return raw * severity_weight(true_condition, tax, severity)
 
 
-def score_bounds(taxonomy: Taxonomy | None = None, severity: SeverityTable | None = None) -> tuple[float, float]:
+def score_bounds(
+    taxonomy: Taxonomy | None = None, severity: SeverityTable | None = None
+) -> tuple[float, float]:
     """(min, max) attainable terminal diagnosis score. Used to assert finiteness [I11]."""
     tax = taxonomy or load_taxonomy()
     sev = severity or load_severity()

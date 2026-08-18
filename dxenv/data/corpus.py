@@ -139,7 +139,9 @@ def _sample_demographics(rng: np.random.Generator) -> tuple[int, str]:
     return age, sex
 
 
-def _leaky_resources(condition_display: str, rng: np.random.Generator) -> tuple[dict[str, Any], ...]:
+def _leaky_resources(
+    condition_display: str, rng: np.random.Generator
+) -> tuple[dict[str, Any], ...]:
     """Synthea-shaped resources that give the answer away, in the seven usual places."""
     return (
         {

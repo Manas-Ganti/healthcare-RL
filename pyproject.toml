@@ -28,6 +28,10 @@ packages = ["dxenv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Fast suite by default: unit + invariants on the 100-patient fixture, target < 60s.
+# The corpus-wide sweeps and the toy-MDP policy-invariance check are marked slow and run
+# nightly and before every gate:  pytest -m slow
+addopts = "-m 'not slow'"
 markers = [
     "slow: full-corpus or toy-MDP exhaustive tests; run nightly and before every gate",
     "corpus: requires a generated corpus on disk",
@@ -41,10 +45,25 @@ src = ["dxenv", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PT", "RET", "SIM", "ARG", "PL", "RUF"]
-ignore = ["PLR0913", "PLR2004"]
+ignore = [
+    "PLR0913",  # long signatures are the price of passing config explicitly
+    "PLR0917",  # (CLAUDE.md 3: no module-level config reads, so config arrives as args)
+    "PLR2004",
+    # Invariant-violation exceptions subclass AssertionError and are named for what
+    # broke (CeilingViolation, EntropyCollapse), not with an -Error suffix. The name is
+    # what appears in a halted training run; readability wins here.
+    "N818",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["PLR2004", "ARG001"]
+# Tests import inside functions on purpose: it keeps module import time off the fast
+# suite and lets a test import the very module it is asserting about.
+"tests/*" = ["PLR2004", "ARG001", "PLC0415", "PLR0917", "PT018", "PLR0915"]
+# Composition sites: score_trajectory and the catalog loader are long because they
+# validate every field explicitly rather than trusting the input.
+"dxenv/reward/engine.py" = ["PLR0912", "PLR0915"]
+"dxenv/env/catalog.py" = ["PLR0912"]
+"dxenv/env/obs_model.py" = ["PLR0912"]
 
 [tool.mypy]
 python_version = "3.11"

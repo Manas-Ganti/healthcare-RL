@@ -57,7 +57,9 @@ REDACTED: Final = "[redacted]"
 
 ALLOWED_RESOURCE_FIELDS: Final[dict[str, frozenset[str]]] = {
     "Patient": frozenset({"id", "gender", "birthDate"}),
-    "Observation": frozenset({"resourceType", "category", "code", "valueQuantity", "effectiveDateTime"}),
+    "Observation": frozenset(
+        {"resourceType", "category", "code", "valueQuantity", "effectiveDateTime"}
+    ),
     "FamilyMemberHistory": frozenset({"resourceType", "relationship", "condition"}),
     # Encounter is permitted, but ONLY its non-explanatory fields. reasonCode and
     # reasonReference are the record telling you why the visit happened, which is the
@@ -79,19 +81,52 @@ class LabelLeakError(AssertionError):
 
 
 @lru_cache(maxsize=1)
-def global_result_vocabulary(catalog: Catalog | None = None) -> frozenset[str]:
-    """Every categorical result value the environment can ever emit.
+def global_vocabulary(catalog: Catalog | None = None) -> frozenset[str]:
+    """Every string the environment itself can put in an observation.
 
-    Global and patient-independent, which is precisely what makes these strings safe to
-    exempt from the label scrub.
+    Analyte keys, analyte display names, units, and categorical result values. All are
+    declared in catalog.yaml and are IDENTICAL for every patient, which is precisely what
+    makes them safe to exempt from the label scrub -- the same argument that makes the
+    global action menu safe under I3. A vocabulary that does not vary with the patient
+    cannot encode which patient it is.
+
+    Everything NOT in this set is record-derived, and record-derived text was written by
+    an author who knew the answer. That is the text the scrub exists for.
     """
     cat = catalog or load_catalog()
     out: set[str] = set()
     for key in cat.all_analyte_keys:
         a = cat.analyte(key)
+        out.add(key)
+        out.add(a.display)
+        if a.unit:
+            out.add(a.unit)
         if isinstance(a, CategoricalAnalyte):
             out.update(a.values)
     return frozenset(out)
+
+
+def global_result_vocabulary(catalog: Catalog | None = None) -> frozenset[str]:
+    """Deprecated alias kept for readability at call sites that mean values only."""
+    return global_vocabulary(catalog)
+
+
+@lru_cache(maxsize=4)
+def _scrub_pattern(taxonomy: Taxonomy | None = None) -> re.Pattern[str]:
+    """One alternation over every label form, longest first.
+
+    Longest-first matters: with "diabetes" before "type 2 diabetes mellitus", the
+    alternation would redact the short form and leave "type 2 [redacted] mellitus",
+    which still names the condition.
+    """
+    tax = taxonomy or load_taxonomy()
+    forms = sorted(
+        {s for lab in tax.labels for s in lab.leak_strings if len(s) >= 4},
+        key=len,
+        reverse=True,
+    )
+    joined = "|".join(re.escape(f) for f in forms)
+    return re.compile(rf"(?<![A-Za-z])(?:{joined})(?![A-Za-z])", re.I)
 
 
 def scrub_text(text: str, taxonomy: Taxonomy | None = None) -> str:
@@ -102,16 +137,7 @@ def scrub_text(text: str, taxonomy: Taxonomy | None = None) -> str:
     to remove would need the label, and the pattern of what it removed would itself be a
     channel.
     """
-    tax = taxonomy or load_taxonomy()
-    out = text
-    forms = sorted(
-        {s for lab in tax.labels for s in lab.leak_strings if len(s) >= 4},
-        key=len,
-        reverse=True,
-    )
-    for form in forms:
-        out = re.sub(rf"(?<![A-Za-z]){re.escape(form)}(?![A-Za-z])", REDACTED, out, flags=re.I)
-    return out
+    return _scrub_pattern(taxonomy).sub(REDACTED, text)
 
 
 def filter_resources(
@@ -207,7 +233,7 @@ def build_observation(
     return Observation(
         patient_ref=view.patient_id,
         turn=turn,
-        demographics=Demographics(age_years=view.age_years, sex=view.sex),  # type: ignore[arg-type]
+        demographics=Demographics(age_years=view.age_years, sex=view.sex),
         presenting_complaint=complaint,
         vitals=vitals,
         family_history=family,
@@ -221,7 +247,13 @@ def build_observation(
 
 def observation_strings(obs: Observation) -> list[str]:
     """Every string an agent could read off an observation. Used by the leak audit."""
-    out = [obs.patient_ref, obs.presenting_complaint, *obs.family_history, *obs.allergies]
+    out = [
+        obs.patient_ref,
+        obs.presenting_complaint,
+        obs.menu_fingerprint,
+        *obs.family_history,
+        *obs.allergies,
+    ]
     for r in (*obs.vitals, *obs.revealed_results):
         out.extend([r.analyte, r.display, r.unit])
         if r.value_code is not None:
@@ -234,13 +266,13 @@ def assert_no_label_leak(
 ) -> None:
     """Raise if any RECORD-DERIVED string in `obs` names this patient's condition.
 
-    Values from the global result vocabulary are exempt; see the module docstring. The
-    exemption is only sound while that vocabulary really is patient-independent, which
-    `test_result_vocabulary_is_global` checks separately -- if that test is ever deleted,
-    this function silently stops guarding anything.
+    Strings from the global catalog vocabulary are exempt; see `global_vocabulary`. The
+    exemption is sound only while that vocabulary really is patient-independent, which
+    `test_vocabulary_is_global` checks separately -- if that test is ever deleted, this
+    function silently stops guarding anything.
     """
     tax = taxonomy or load_taxonomy()
-    vocab = global_result_vocabulary()
+    vocab = global_vocabulary()
     forms = [s for s in tax.get(condition).leak_strings if len(s) >= 4]
     for text in observation_strings(obs):
         if text in vocab:

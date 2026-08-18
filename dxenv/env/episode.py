@@ -21,9 +21,9 @@ import numpy as np
 import yaml
 
 from dxenv.data.corpus import PatientRecord
-from dxenv.env.actions import ActionKind, ActionMenu, build_menu
-from dxenv.env.catalog import Catalog, load_catalog
 from dxenv.data.taxonomy import load_taxonomy
+from dxenv.env.actions import ActionMenu, build_menu
+from dxenv.env.catalog import Catalog, load_catalog
 from dxenv.env.filter import build_observation, build_result
 from dxenv.env.obs_model import ResultValue
 from dxenv.env.schemas import Abstain, Action, Diagnose, Observation, OrderTest, Prescribe, Step
@@ -130,7 +130,9 @@ class DiagnosticEpisode:
         self.config = config or load_episode_config()
         self.menu = menu or build_menu()
         self.catalog = catalog or load_catalog()
-        self._rng = np.random.default_rng([seed, int.from_bytes(record.patient_id.encode()[-8:], "little")])
+        self._rng = np.random.default_rng(
+            [seed, int.from_bytes(record.patient_id.encode()[-8:], "little")]
+        )
         self._forced_budget = budget
         self.state = EpisodeState()
         self.steps: list[Step] = []

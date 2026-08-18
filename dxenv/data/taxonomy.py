@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Final
 
 import numpy as np
+import numpy.typing as npt
 import yaml
 
 _LABELS_PATH: Final = Path(__file__).with_name("labels.yaml")
@@ -126,12 +127,12 @@ class Taxonomy:
     def get(self, slug: str) -> Label:
         return self._labels[self.index(slug)]
 
-    def prior(self) -> np.ndarray:
+    def prior(self) -> npt.NDArray[np.float64]:
         """Normalised prevalence prior over the canonical label ordering."""
         w = np.array([lab.prior_weight for lab in self._labels], dtype=np.float64)
-        return w / w.sum()
+        return np.asarray(w / w.sum(), dtype=np.float64)
 
-    def urgency_vector(self) -> np.ndarray:
+    def urgency_vector(self) -> npt.NDArray[np.float64]:
         return np.array([lab.urgency for lab in self._labels], dtype=np.int64)
 
     def hash(self) -> str:

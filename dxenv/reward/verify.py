@@ -27,9 +27,10 @@ from functools import lru_cache
 from typing import Final, Literal
 
 import numpy as np
+from scipy.special import ndtr
 
 from dxenv.data.taxonomy import load_taxonomy
-from dxenv.env.catalog import CategoricalAnalyte, Catalog, QuantitativeAnalyte, load_catalog
+from dxenv.env.catalog import Catalog, CategoricalAnalyte, QuantitativeAnalyte, load_catalog
 from dxenv.env.obs_model import ResultValue, build_observation_model
 
 Bucket = Literal["low", "normal", "high", "abnormal_categorical", "normal_categorical"]
@@ -97,8 +98,6 @@ def _bucket_priors() -> dict[tuple[str, str], float]:
             t = model.table(key)
             mean = np.asarray(t.mean)  # type: ignore[union-attr]
             sd = np.asarray(t.sd)  # type: ignore[union-attr]
-            from scipy.special import ndtr
-
             p_low = float(prior @ ndtr((a.ref_low - mean) / sd))
             p_below_high = float(prior @ ndtr((a.ref_high - mean) / sd))
             out[(key, "low")] = p_low

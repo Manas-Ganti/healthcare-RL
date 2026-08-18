@@ -47,6 +47,7 @@ from collections.abc import Callable, Mapping
 from typing import Final
 
 import numpy as np
+import numpy.typing as npt
 
 from dxenv.data.taxonomy import Taxonomy, load_taxonomy
 from dxenv.env.obs_model import ObservationModel, ResultValue, build_observation_model
@@ -54,7 +55,7 @@ from dxenv.env.obs_model import ObservationModel, ResultValue, build_observation
 Evidence = Mapping[str, ResultValue]
 """analyte key -> observed result. The posterior depends on this SET, never on order."""
 
-ScoreFn = Callable[[np.ndarray, int], float]
+ScoreFn = Callable[[npt.NDArray[np.float64], int], float]
 """(reported distribution, true condition index) -> score. Higher is better."""
 
 _LOG_ZERO_FLOOR: Final = -700.0
@@ -71,12 +72,12 @@ class BayesError(ValueError):
     """Malformed evidence or belief. Never caught inside `dxenv.env`."""
 
 
-def log_prior(taxonomy: Taxonomy | None = None) -> np.ndarray:
+def log_prior(taxonomy: Taxonomy | None = None) -> npt.NDArray[np.float64]:
     tax = taxonomy or load_taxonomy()
     return np.log(tax.prior())
 
 
-def _normalise_log(logits: np.ndarray) -> np.ndarray:
+def _normalise_log(logits: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """Softmax with the standard max-shift. Returns a strictly positive, normalised vector."""
     if not np.isfinite(logits).all():
         raise BayesError("non-finite log-posterior; a likelihood term was inf or NaN [I11]")
@@ -92,8 +93,8 @@ def _normalise_log(logits: np.ndarray) -> np.ndarray:
 def posterior(
     evidence: Evidence,
     model: ObservationModel | None = None,
-    prior_log: np.ndarray | None = None,
-) -> np.ndarray:
+    prior_log: npt.NDArray[np.float64] | None = None,
+) -> npt.NDArray[np.float64]:
     """Exact Bayesian update over the flat label set.
 
     Conditional independence of analytes given the condition is the modelling assumption
@@ -111,14 +112,14 @@ def posterior(
     return _normalise_log(logits)
 
 
-def entropy(p: np.ndarray) -> float:
+def entropy(p: npt.NDArray[np.float64]) -> float:
     """Shannon entropy in nats. The shaping potential is its negation (reward/shaping.py)."""
     check_belief(p)
     nz = p[p > 0.0]
     return float(-(nz * np.log(nz)).sum())
 
 
-def check_belief(p: np.ndarray) -> None:
+def check_belief(p: npt.NDArray[np.float64]) -> None:
     if p.ndim != 1:
         raise BayesError("belief must be a 1-D vector")
     if not np.isfinite(p).all():
@@ -129,14 +130,18 @@ def check_belief(p: np.ndarray) -> None:
         raise BayesError(f"belief sums to {p.sum()}, not 1")
 
 
-def expected_score(belief: np.ndarray, report: np.ndarray, score_fn: ScoreFn) -> float:
+def expected_score(
+    belief: npt.NDArray[np.float64],
+    report: npt.NDArray[np.float64],
+    score_fn: ScoreFn,
+) -> float:
     """E_{c ~ belief}[ score_fn(report, c) ]."""
     check_belief(belief)
     check_belief(report)
     return float(sum(belief[i] * score_fn(report, i) for i in range(belief.size)))
 
 
-def bayes_optimal_value(belief: np.ndarray, score_fn: ScoreFn) -> float:
+def bayes_optimal_value(belief: npt.NDArray[np.float64], score_fn: ScoreFn) -> float:
     """Best expected score obtainable while holding `belief`.
 
     By properness of the scoring rule this is attained by reporting `belief` itself, so
@@ -151,7 +156,7 @@ def expected_ceiling(
     full_evidence: Evidence,
     score_fn: ScoreFn,
     model: ObservationModel | None = None,
-    prior_log: np.ndarray | None = None,
+    prior_log: npt.NDArray[np.float64] | None = None,
 ) -> float:
     """Upper bound on the expected terminal score, given every analyte revealed for free.
 
@@ -191,8 +196,8 @@ def hard_ceiling(score_fn: ScoreFn, n_conditions: int | None = None) -> float:
 def posterior_sequence(
     ordered_evidence: list[tuple[str, ResultValue]],
     model: ObservationModel | None = None,
-    prior_log: np.ndarray | None = None,
-) -> list[np.ndarray]:
+    prior_log: npt.NDArray[np.float64] | None = None,
+) -> list[npt.NDArray[np.float64]]:
     """Posterior after each successive observation, starting from the prior.
 
     Used by the shaping potential (which needs Phi at every state) and by the rejection

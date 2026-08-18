@@ -16,6 +16,7 @@ the property that makes it unfarmable.
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 
 from dxenv.env.bayes import entropy
 
@@ -24,13 +25,15 @@ class ShapingError(ValueError):
     """Malformed belief sequence. Never caught inside `dxenv.reward`."""
 
 
-def potential(belief: np.ndarray) -> float:
+def potential(belief: npt.NDArray[np.float64]) -> float:
     """Phi(s) = -H(belief). Bounded in [-log n, 0]."""
     return -entropy(belief)
 
 
 def shaping_terms(
-    beliefs: list[np.ndarray], gamma: float = 1.0, scale: float = 1.0
+    beliefs: list[npt.NDArray[np.float64]],
+    gamma: float = 1.0,
+    scale: float = 1.0,
 ) -> list[float]:
     """One term per transition. `beliefs` is the posterior at each state, s_0 first."""
     if len(beliefs) < 2:
@@ -43,13 +46,31 @@ def shaping_terms(
     return [scale * (gamma * phis[i + 1] - phis[i]) for i in range(len(phis) - 1)]
 
 
-def total_shaping(beliefs: list[np.ndarray], gamma: float = 1.0, scale: float = 1.0) -> float:
-    """Sum of the shaping terms. Equals scale * (gamma^T Phi(s_T) - Phi(s_0)) when gamma == 1."""
+def total_shaping(
+    beliefs: list[npt.NDArray[np.float64]],
+    gamma: float = 1.0,
+    scale: float = 1.0,
+) -> float:
+    """PLAIN sum of the shaping terms -- what the reward engine actually adds up.
+
+    Equals the telescoped closed form only when gamma == 1 (which is the shipped config).
+    For gamma < 1 the telescoping identity is about the DISCOUNTED sum; use
+    `discounted_total` for that comparison. Conflating the two is an easy mistake: the
+    plain sum of gamma*Phi(s') - Phi(s) does NOT telescope when gamma < 1.
+    """
     return float(sum(shaping_terms(beliefs, gamma, scale)))
 
 
+def discounted_total(
+    beliefs: list[npt.NDArray[np.float64]], gamma: float = 1.0, scale: float = 1.0
+) -> float:
+    """sum_i gamma^i * F_i -- the quantity the telescoping identity is about."""
+    terms = shaping_terms(beliefs, gamma, scale)
+    return float(sum(gamma**i * f for i, f in enumerate(terms)))
+
+
 def telescoped_total(
-    beliefs: list[np.ndarray], gamma: float = 1.0, scale: float = 1.0
+    beliefs: list[npt.NDArray[np.float64]], gamma: float = 1.0, scale: float = 1.0
 ) -> float:
     """The closed form, computed from the endpoints only.
 

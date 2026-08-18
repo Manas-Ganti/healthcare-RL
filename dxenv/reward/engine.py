@@ -35,7 +35,12 @@ from dxenv.data.taxonomy import Taxonomy, load_taxonomy
 from dxenv.env.bayes import posterior_sequence
 from dxenv.env.catalog import Catalog, load_catalog
 from dxenv.env.obs_model import ObservationModel, ResultValue, build_observation_model
-from dxenv.reward.costs import CostTable, load_cost_table, test_cost_term, turn_penalty_term
+from dxenv.reward.costs import (
+    CostTable,
+    load_cost_table,
+    order_cost_term,
+    turn_penalty_term,
+)
 from dxenv.reward.scoring import (
     SeverityTable,
     load_severity,
@@ -48,7 +53,7 @@ from dxenv.reward.treatment import (
     load_treatment_config,
     treatment_score,
 )
-from dxenv.reward.verify import max_verify_gain, verify_term
+from dxenv.reward.verify import verify_term
 
 _CONFIG_DIR: Final = Path(__file__).resolve().parents[1] / "configs"
 
@@ -245,7 +250,7 @@ def score_trajectory(
             key = action["test_key"]
             charged = float(step.get("cost_charged", 0.0)) > 0.0
             if charged:
-                test_cost += test_cost_term(key, config.lam, config.costs)
+                test_cost += order_cost_term(key, config.lam, config.costs)
                 n_charged += 1
             revealed = {
                 r["analyte"]: _step_value(r) for r in step.get("revealed", [])
