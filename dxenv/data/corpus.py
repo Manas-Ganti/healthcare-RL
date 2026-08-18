@@ -41,7 +41,6 @@ BLOCKED_RESOURCE_TYPES: Final = frozenset(
         "DiagnosticReport",
         "CareTeam",
         "Goal",
-        "AllergyIntolerance",
         "ImagingStudy",
         "Claim",
         "ExplanationOfBenefit",
@@ -51,13 +50,34 @@ BLOCKED_RESOURCE_TYPES: Final = frozenset(
 per type; this set is the single source of truth and both modules read it."""
 
 FAMILY_HISTORY_POOL: Final = (
-    "ischemic heart disease in a first-degree relative",
-    "type 2 diabetes in a first-degree relative",
-    "breast cancer in a first-degree relative",
-    "colorectal cancer in a first-degree relative",
-    "stroke in a first-degree relative",
-    "no significant family history",
+    "fh_cardiac_first_degree",
+    "fh_metabolic_first_degree",
+    "fh_oncologic_first_degree",
+    "fh_neurovascular_first_degree",
+    "fh_autoimmune_first_degree",
 )
+"""Coded at the ORGAN-SYSTEM level, not the condition level.
+
+Free-text family history ("type 2 diabetes in a first-degree relative") names a
+condition, and for the patient who has that condition it is a label string sitting in
+the observation. Coding one level up keeps the weak prior signal that family history
+genuinely carries without ever printing a label."""
+
+ALLERGY_POOL: Final = (
+    "penicillin",
+    "sulfonamide",
+    "macrolide",
+    "nsaid",
+    "opioid",
+    "cephalosporin",
+)
+"""Drug classes a patient may be allergic to.
+
+Sampled INDEPENDENTLY of the condition -- deliberately, and the independence is tested.
+Allergies are visible to the agent (unlike Condition or MedicationRequest) because they
+do not name the diagnosis and because prescribing safely is impossible without them;
+the contraindication penalties in reward/treatment.py are only meaningful if the agent
+could have avoided the harm."""
 
 
 class CorpusError(ValueError):
@@ -77,6 +97,7 @@ class PatientView:
     age_years: int
     sex: str
     family_history: tuple[str, ...]
+    allergies: tuple[str, ...]
     analytes: dict[str, ResultValue]
     """Every analyte, already sampled. Revealing a subset is the episode's job.
 
@@ -96,6 +117,7 @@ class PatientRecord:
 
     analytes: dict[str, ResultValue]
     family_history: tuple[str, ...] = ()
+    allergies: tuple[str, ...] = ()
     resources: tuple[dict[str, Any], ...] = field(default=())
     synthea_module: str = "synthetic"
 
@@ -106,6 +128,7 @@ class PatientRecord:
             age_years=self.age_years,
             sex=self.sex,
             family_history=self.family_history,
+            allergies=self.allergies,
             analytes=dict(self.analytes),
         )
 
@@ -185,6 +208,9 @@ def generate_patient(
     }
     n_fh = int(rng.integers(0, 3))
     fh = tuple(rng.choice(FAMILY_HISTORY_POOL, size=n_fh, replace=False).tolist())
+    # Drawn from a condition-independent distribution: see ALLERGY_POOL.
+    n_allergy = int(rng.binomial(2, 0.18))
+    allergies = tuple(rng.choice(ALLERGY_POOL, size=n_allergy, replace=False).tolist())
 
     return PatientRecord(
         patient_id=patient_id,
@@ -193,6 +219,7 @@ def generate_patient(
         condition=condition,
         analytes=analytes,
         family_history=fh,
+        allergies=allergies,
         resources=_leaky_resources(tax.get(condition).display, rng),
         synthea_module=tax.get(condition).system,
     )
@@ -297,6 +324,7 @@ def parse_synthea_bundle(
         condition=condition,
         analytes=analytes,
         family_history=(),
+        allergies=(),
         resources=tuple(resources),
         synthea_module="synthea",
     )

@@ -31,26 +31,52 @@ abstain:
   penalty: 0.05
 
 costs:
-  lambda: 1.0
+  # Calibrated from measurement, not taste. A myopic-entropy policy on a 40-patient
+  # sample gains +0.76 weighted score for the first ~18 cost units, +0.23 for the next
+  # ~36, and effectively nothing after ~6 tests. Marginal benefit per cost unit is
+  # therefore ~0.041 early, ~0.0062 mid, ~0.0010 late. lambda sits between the mid and
+  # late figures so the optimum is INTERIOR -- roughly 3-6 tests. At lambda=1.0 (the
+  # obvious-looking default) no test on the menu is ever worth ordering and the whole
+  # environment collapses to "guess from vitals".
+  lambda: 0.004
   # Per-turn penalty. Small relative to test costs: the thing we are pricing is
   # investigation, not deliberation.
   mu: 0.02
 
 shaping:
-  enabled: true
+  # DISABLED BY DEFAULT, and the reason is a genuine tension in the spec worth reading.
+  #
+  # I5 requires that ordering a test never produces positive reward "under any shaping
+  # term". Potential-based shaping with Phi = -H(posterior) sums over an episode to
+  # scale * (H(s_0) - H(s_T)) -- which IS total information gain, the very thing I5's
+  # commentary prohibits paying for. The two are reconcilable only if shaping is scaled
+  # below the cheapest order's cost: with lambda = 0.004 and a cheapest test of 1.0 cost
+  # unit, a single transition can gain at most scale * log(149) = 5.0 * scale, so strict
+  # per-step non-positivity needs scale <= 0.0008. At that scale the entire shaping
+  # contribution over an episode is under 0.004, against a diagnosis term spanning +-6.
+  # It would be a no-op dressed up as a mechanism.
+  #
+  # So: the machinery is built and tested (telescoping, closed-loop-zero,
+  # policy-invariance), and it is OFF. Turning it on with a meaningful scale makes
+  # validate_reward_config raise, by design. Ng et al. (1999) guarantees the optimal
+  # policy set is unchanged for any Phi, so enabling it is defensible -- but that is a
+  # decision to take deliberately, not to inherit from a default.
+  enabled: false
   gamma: 1.0
   # Phi = -entropy(posterior), in nats. Ng et al. (1999) guarantees the optimal policy
   # set is unchanged for ANY Phi, which is the entire reason shaping is allowed here.
   potential: negative_posterior_entropy
-  scale: 0.10
+  scale: 0.0008
 
 verify:
   # Predict-then-verify: the agent commits to a coarse prediction of a result before it
   # is revealed. Unhackable because ground truth is hidden until after commitment.
   enabled: true
-  scale: 0.05
-  # Deliberately smaller than the cheapest test cost, so predict-then-verify can never
-  # turn a test into a net-positive action [I5].
+  # Expressed as a FRACTION OF THE ORDER'S OWN COST, not as a flat scale. A flat scale
+  # would have to sit below the cheapest test's price to satisfy I5, making it
+  # negligible for exactly the expensive tests where committing to a prediction matters.
+  # As a fraction below 1, cost + verify is strictly negative for every test [I5].
+  fraction_of_cost: 0.25
 
 treatment:
   # Scored twice: against the DECLARED diagnosis (coherence) and against the TRUE

@@ -67,6 +67,7 @@ class Observation(Strict):
     presenting_complaint: str
     vitals: tuple[AnalyteResult, ...]
     family_history: tuple[str, ...]
+    allergies: tuple[str, ...]
     revealed_results: tuple[AnalyteResult, ...]
     remaining_budget: float
     turns_remaining: int

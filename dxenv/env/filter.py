@@ -211,6 +211,7 @@ def build_observation(
         presenting_complaint=complaint,
         vitals=vitals,
         family_history=family,
+        allergies=view.allergies,
         revealed_results=results,
         remaining_budget=round(float(remaining_budget), 4),
         turns_remaining=turns_remaining,
@@ -220,7 +221,7 @@ def build_observation(
 
 def observation_strings(obs: Observation) -> list[str]:
     """Every string an agent could read off an observation. Used by the leak audit."""
-    out = [obs.patient_ref, obs.presenting_complaint, *obs.family_history]
+    out = [obs.patient_ref, obs.presenting_complaint, *obs.family_history, *obs.allergies]
     for r in (*obs.vitals, *obs.revealed_results):
         out.extend([r.analyte, r.display, r.unit])
         if r.value_code is not None:

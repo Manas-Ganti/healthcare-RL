@@ -1,0 +1,214 @@
+# Treatment appropriateness and contraindication rules.
+#
+# SIMULATION PARAMETERS, NOT CLINICAL GUIDANCE. These encode a coarse, internally
+# consistent notion of "a reasonable thing to do for this condition" so that the
+# treatment reward has structure. They are not a formulary and must never be presented
+# as one.
+#
+# Scored twice (CLAUDE.md 7.5):
+#   * against the DECLARED diagnosis  -> rewards coherence
+#   * against the TRUE condition      -> rewards being right
+# A lucky-correct treatment under a wrong diagnosis does not collect the second.
+version: 1
+
+# Full credit. Everything not listed for a condition scores zero unless it appears in
+# `acceptable`, and `no_pharmacotherapy` is correct for conditions where doing nothing
+# pharmacological IS the answer.
+first_line:
+  acute_myocardial_infarction: [aspirin, heparin_infusion, atorvastatin, metoprolol]
+  unstable_angina: [aspirin, enoxaparin, atorvastatin, metoprolol]
+  stable_angina: [aspirin, atorvastatin, metoprolol, nitroglycerin]
+  heart_failure_reduced_ef: [furosemide, sacubitril_valsartan, metoprolol, lisinopril]
+  heart_failure_preserved_ef: [furosemide, lisinopril, amlodipine]
+  atrial_fibrillation: [apixaban, metoprolol, digoxin]
+  supraventricular_tachycardia: [metoprolol]
+  essential_hypertension: [amlodipine, lisinopril, losartan]
+  hypertensive_emergency: [nitroglycerin, metoprolol, amlodipine]
+  aortic_dissection: [metoprolol, urgent_surgical_referral, morphine]
+  pulmonary_embolism: [apixaban, heparin_infusion, enoxaparin, supplemental_oxygen]
+  deep_vein_thrombosis: [apixaban, enoxaparin]
+  peripheral_artery_disease: [aspirin, atorvastatin]
+  infective_endocarditis: [vancomycin_iv, ceftriaxone, urgent_specialty_referral]
+  acute_pericarditis: [ibuprofen, colchicine]
+  myocarditis: [supplemental_oxygen, furosemide, urgent_specialty_referral]
+  cardiac_tamponade: [urgent_surgical_referral, iv_fluids_isotonic]
+  aortic_stenosis: [urgent_specialty_referral, furosemide]
+  community_acquired_pneumonia: [amoxicillin, ceftriaxone, azithromycin, doxycycline]
+  aspiration_pneumonia: [amoxicillin_clavulanate, piperacillin_tazobactam, supplemental_oxygen]
+  covid19: [nirmatrelvir_ritonavir, supplemental_oxygen, prednisone]
+  influenza: [oseltamivir, acetaminophen]
+  acute_bronchitis: [no_pharmacotherapy, acetaminophen]
+  asthma_exacerbation: [albuterol, prednisone, inhaled_corticosteroid, supplemental_oxygen]
+  copd_exacerbation: [albuterol, prednisone, azithromycin, supplemental_oxygen]
+  pneumothorax: [urgent_surgical_referral, supplemental_oxygen]
+  pleural_effusion: [urgent_specialty_referral, furosemide]
+  lung_cancer: [urgent_specialty_referral]
+  pulmonary_fibrosis: [supplemental_oxygen, urgent_specialty_referral]
+  obstructive_sleep_apnea: [urgent_specialty_referral, no_pharmacotherapy]
+  tuberculosis: [antitubercular_regimen]
+  upper_respiratory_infection: [no_pharmacotherapy, acetaminophen]
+  acute_sinusitis: [amoxicillin, no_pharmacotherapy]
+  streptococcal_pharyngitis: [penicillin_v, amoxicillin, azithromycin]
+  allergic_rhinitis: [inhaled_corticosteroid, no_pharmacotherapy]
+  type_1_diabetes: [insulin_basal_bolus]
+  type_2_diabetes: [metformin, insulin_basal_bolus, atorvastatin]
+  diabetic_ketoacidosis: [insulin_infusion, iv_fluids_isotonic, potassium_binder]
+  hyperosmolar_hyperglycemic_state: [iv_fluids_isotonic, insulin_infusion]
+  hypoglycemia: [dextrose_50]
+  hypothyroidism: [levothyroxine]
+  hyperthyroidism: [methimazole, metoprolol]
+  thyroid_storm: [methimazole, metoprolol, hydrocortisone_stress_dose]
+  adrenal_insufficiency: [hydrocortisone_stress_dose, iv_fluids_isotonic]
+  cushing_syndrome: [urgent_specialty_referral]
+  primary_hyperparathyroidism: [urgent_surgical_referral, iv_fluids_isotonic]
+  dyslipidemia: [atorvastatin]
+  gout: [colchicine, ibuprofen, allopurinol]
+  vitamin_d_deficiency: [vitamin_d_supplement]
+  hyponatremia: [hypertonic_saline, iv_fluids_isotonic]
+  hyperkalemia: [calcium_gluconate, potassium_binder, insulin_infusion]
+  hypercalcemia: [iv_fluids_isotonic, bisphosphonate]
+  acute_appendicitis: [urgent_surgical_referral, ceftriaxone, metronidazole]
+  acute_cholecystitis: [ceftriaxone, metronidazole, urgent_surgical_referral]
+  choledocholithiasis: [urgent_specialty_referral, ceftriaxone]
+  acute_pancreatitis: [iv_fluids_isotonic, ondansetron, morphine]
+  peptic_ulcer_disease: [pantoprazole, amoxicillin, metronidazole]
+  gastroesophageal_reflux: [pantoprazole]
+  viral_gastroenteritis: [iv_fluids_isotonic, ondansetron, no_pharmacotherapy]
+  clostridioides_difficile_colitis: [vancomycin_oral, metronidazole]
+  diverticulitis: [amoxicillin_clavulanate, ciprofloxacin, metronidazole]
+  crohn_disease: [prednisone, urgent_specialty_referral]
+  ulcerative_colitis: [prednisone, urgent_specialty_referral]
+  celiac_disease: [no_pharmacotherapy, iron_supplement, vitamin_d_supplement]
+  irritable_bowel_syndrome: [no_pharmacotherapy, ondansetron]
+  hepatic_cirrhosis: [furosemide, urgent_specialty_referral]
+  alcoholic_hepatitis: [prednisone, iv_fluids_isotonic, lorazepam]
+  chronic_hepatitis_b: [antiretroviral_therapy, urgent_specialty_referral]
+  chronic_hepatitis_c: [urgent_specialty_referral]
+  nonalcoholic_fatty_liver: [no_pharmacotherapy, atorvastatin]
+  upper_gi_bleed: [pantoprazole, urgent_specialty_referral, iv_fluids_isotonic]
+  small_bowel_obstruction: [urgent_surgical_referral, iv_fluids_isotonic, ondansetron]
+  colorectal_cancer: [urgent_specialty_referral]
+  pancreatic_cancer: [urgent_specialty_referral]
+  acute_kidney_injury: [iv_fluids_isotonic, urgent_specialty_referral]
+  chronic_kidney_disease: [lisinopril, furosemide, urgent_specialty_referral]
+  nephrolithiasis: [iv_fluids_isotonic, ibuprofen, morphine]
+  urinary_tract_infection: [nitrofurantoin, trimethoprim_sulfamethoxazole, ciprofloxacin]
+  pyelonephritis: [ceftriaxone, ciprofloxacin, iv_fluids_isotonic]
+  benign_prostatic_hyperplasia: [urgent_specialty_referral, no_pharmacotherapy]
+  prostate_cancer: [urgent_specialty_referral]
+  nephrotic_syndrome: [furosemide, lisinopril, urgent_specialty_referral]
+  glomerulonephritis: [prednisone, lisinopril, urgent_specialty_referral]
+  ischemic_stroke: [thrombolysis, aspirin, atorvastatin]
+  hemorrhagic_stroke: [urgent_surgical_referral, metoprolol]
+  subarachnoid_hemorrhage: [urgent_surgical_referral, metoprolol]
+  transient_ischemic_attack: [aspirin, atorvastatin, clopidogrel]
+  migraine: [sumatriptan, ibuprofen, ondansetron]
+  tension_headache: [acetaminophen, ibuprofen]
+  epilepsy: [levetiracetam]
+  status_epilepticus: [lorazepam, levetiracetam]
+  bacterial_meningitis: [ceftriaxone, vancomycin_iv, hydrocortisone_stress_dose]
+  viral_meningitis: [acetaminophen, iv_fluids_isotonic, no_pharmacotherapy]
+  encephalitis: [acyclovir_iv, levetiracetam]
+  alzheimer_dementia: [urgent_specialty_referral, no_pharmacotherapy]
+  parkinson_disease: [urgent_specialty_referral]
+  multiple_sclerosis: [prednisone, urgent_specialty_referral]
+  peripheral_neuropathy: [vitamin_b12_injection, no_pharmacotherapy]
+  bell_palsy: [prednisone, acyclovir_iv]
+  concussion: [acetaminophen, no_pharmacotherapy]
+  benign_positional_vertigo: [no_pharmacotherapy, ondansetron]
+  guillain_barre_syndrome: [urgent_specialty_referral, supplemental_oxygen]
+  iron_deficiency_anemia: [iron_supplement]
+  b12_deficiency_anemia: [vitamin_b12_injection]
+  anemia_of_chronic_disease: [no_pharmacotherapy, urgent_specialty_referral]
+  sickle_cell_crisis: [morphine, iv_fluids_isotonic, supplemental_oxygen]
+  immune_thrombocytopenia: [prednisone, urgent_specialty_referral]
+  acute_leukemia: [urgent_specialty_referral, iv_fluids_isotonic, allopurinol]
+  lymphoma: [urgent_specialty_referral]
+  multiple_myeloma: [urgent_specialty_referral, iv_fluids_isotonic, bisphosphonate]
+  sepsis: [piperacillin_tazobactam, vancomycin_iv, iv_fluids_isotonic]
+  septic_shock: [piperacillin_tazobactam, vancomycin_iv, iv_fluids_isotonic, supplemental_oxygen]
+  cellulitis: [cefazolin, amoxicillin_clavulanate, doxycycline]
+  osteomyelitis: [vancomycin_iv, ceftriaxone, urgent_specialty_referral]
+  necrotizing_fasciitis: [urgent_surgical_referral, piperacillin_tazobactam, vancomycin_iv]
+  lyme_disease: [doxycycline, amoxicillin]
+  hiv_infection: [antiretroviral_therapy]
+  infectious_mononucleosis: [acetaminophen, no_pharmacotherapy]
+  rheumatoid_arthritis: [prednisone, urgent_specialty_referral]
+  systemic_lupus_erythematosus: [prednisone, urgent_specialty_referral]
+  osteoarthritis: [acetaminophen, ibuprofen]
+  osteoporosis: [bisphosphonate, vitamin_d_supplement]
+  fibromyalgia: [sertraline, no_pharmacotherapy]
+  polymyalgia_rheumatica: [prednisone]
+  giant_cell_arteritis: [prednisone, urgent_specialty_referral]
+  septic_arthritis: [vancomycin_iv, ceftriaxone, urgent_surgical_referral]
+  psoriasis: [inhaled_corticosteroid, urgent_specialty_referral]
+  atopic_dermatitis: [inhaled_corticosteroid, no_pharmacotherapy]
+  contact_dermatitis: [inhaled_corticosteroid, no_pharmacotherapy]
+  urticaria: [inhaled_corticosteroid, prednisone]
+  anaphylaxis: [epinephrine_im, prednisone, iv_fluids_isotonic]
+  hip_fracture: [urgent_surgical_referral, morphine, acetaminophen]
+  mechanical_low_back_pain: [ibuprofen, acetaminophen, no_pharmacotherapy]
+  rhabdomyolysis: [iv_fluids_isotonic, calcium_gluconate]
+  major_depressive_disorder: [sertraline]
+  generalized_anxiety_disorder: [sertraline, no_pharmacotherapy]
+  bipolar_disorder: [urgent_specialty_referral, lorazepam]
+  schizophrenia: [urgent_specialty_referral, lorazepam]
+  alcohol_use_disorder: [lorazepam, magnesium_sulfate, urgent_specialty_referral]
+  opioid_use_disorder: [urgent_specialty_referral]
+  opioid_overdose: [naloxone, supplemental_oxygen]
+  attention_deficit_disorder: [urgent_specialty_referral, no_pharmacotherapy]
+  preeclampsia: [magnesium_sulfate, amlodipine, urgent_specialty_referral]
+  ectopic_pregnancy: [urgent_surgical_referral, iv_fluids_isotonic]
+  normal_pregnancy: [no_pharmacotherapy, vitamin_d_supplement]
+  hyperemesis_gravidarum: [ondansetron, iv_fluids_isotonic]
+  heat_stroke: [iv_fluids_isotonic, supplemental_oxygen]
+  carbon_monoxide_poisoning: [supplemental_oxygen]
+  acetaminophen_toxicity: [n_acetylcysteine, urgent_specialty_referral]
+
+# Partial credit: defensible, not first choice.
+acceptable_fraction: 0.4
+acceptable:
+  community_acquired_pneumonia: [levofloxacin, piperacillin_tazobactam]
+  urinary_tract_infection: [amoxicillin_clavulanate, levofloxacin]
+  cellulitis: [vancomycin_iv, trimethoprim_sulfamethoxazole]
+  sepsis: [ceftriaxone, metronidazole]
+  type_2_diabetes: [lisinopril, no_pharmacotherapy]
+  essential_hypertension: [metoprolol, furosemide]
+  atrial_fibrillation: [enoxaparin, heparin_infusion]
+  migraine: [acetaminophen, morphine]
+  gout: [prednisone]
+  asthma_exacerbation: [magnesium_sulfate]
+  acute_myocardial_infarction: [clopidogrel, nitroglycerin, morphine, supplemental_oxygen]
+
+# Contraindications are asymmetric and large. A contraindicated prescription must score
+# strictly WORSE than a suboptimal-but-safe one at every level of diagnostic accuracy --
+# otherwise "shotgun everything plausible" dominates, and the shotgun includes the harm.
+contraindications:
+  allergy:
+    # Prescribing a drug whose class is on the patient's allergy list. The list is
+    # visible in the observation, so this is always avoidable.
+    scale: 1.0
+  renal:
+    egfr_below: 30.0
+    treatments: [metformin, nitrofurantoin, ibuprofen, enoxaparin, apixaban]
+    scale: 1.0
+  pregnancy:
+    hcg_above: 25.0
+    treatments: [lisinopril, losartan, sacubitril_valsartan, doxycycline, ibuprofen, methimazole, atorvastatin]
+    scale: 1.0
+  hyperkalemia:
+    potassium_above: 5.5
+    treatments: [lisinopril, losartan, sacubitril_valsartan]
+    scale: 0.8
+  bleeding:
+    platelets_below: 50.0
+    treatments: [thrombolysis, apixaban, enoxaparin, heparin_infusion, aspirin, ibuprofen]
+    scale: 1.0
+  interactions:
+    # Prescribing BOTH of a pair in the same episode.
+    - {pair: [thrombolysis, apixaban], scale: 1.0}
+    - {pair: [thrombolysis, enoxaparin], scale: 1.0}
+    - {pair: [heparin_infusion, apixaban], scale: 0.8}
+    - {pair: [metoprolol, digoxin], scale: 0.4}
+    - {pair: [lisinopril, losartan], scale: 0.8}
+    - {pair: [sertraline, lorazepam], scale: 0.3}
