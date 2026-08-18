@@ -1,0 +1,62 @@
+# Reward engine weights. Every run pins this file's hash.
+#
+# Reward is a pure function of (trajectory, ground_truth, reward_config) [I8], so a
+# stored trajectory corpus can be rescored under new weights for free. Expect to change
+# these numbers repeatedly; never regenerate rollouts to do it.
+version: 1
+
+# R = brier(p, c_true) * severity_weight(c_true)
+#     - lambda * sum(cost(t))
+#     - mu * n_turns
+#     + treatment_score
+#     + shaping (telescoping, I6)
+#     + predict-then-verify terms
+
+diagnosis:
+  # Brier, not log-loss: log-loss is unbounded below and one rollout putting ~0 on the
+  # truth wrecks GRPO advantage normalisation [I11].
+  rule: brier
+  # Brier here is the NEGATIVE of the usual sum-of-squares loss, shifted so a uniform
+  # report over the flat label set scores 0. Confident-correct is positive,
+  # confident-wrong is negative and bounded.
+  shift_to_uniform_zero: true
+
+abstain:
+  # Priced near the expected value of a calibrated prior guess, so abstaining is a real
+  # option under genuine uncertainty but never a free ride.
+  # test_abstain_priced_between_correct_and_incorrect asserts the ordering.
+  value: 0.0
+  # Small penalty on top so a policy that abstains on everything does strictly worse than
+  # one that reports the prior -- otherwise abstain becomes the lazy attractor.
+  penalty: 0.05
+
+costs:
+  lambda: 1.0
+  # Per-turn penalty. Small relative to test costs: the thing we are pricing is
+  # investigation, not deliberation.
+  mu: 0.02
+
+shaping:
+  enabled: true
+  gamma: 1.0
+  # Phi = -entropy(posterior), in nats. Ng et al. (1999) guarantees the optimal policy
+  # set is unchanged for ANY Phi, which is the entire reason shaping is allowed here.
+  potential: negative_posterior_entropy
+  scale: 0.10
+
+verify:
+  # Predict-then-verify: the agent commits to a coarse prediction of a result before it
+  # is revealed. Unhackable because ground truth is hidden until after commitment.
+  enabled: true
+  scale: 0.05
+  # Deliberately smaller than the cheapest test cost, so predict-then-verify can never
+  # turn a test into a net-positive action [I5].
+
+treatment:
+  # Scored twice: against the DECLARED diagnosis (coherence) and against the TRUE
+  # condition. A lucky-correct treatment under a wrong diagnosis does not collect.
+  coherence_scale: 0.5
+  correctness_scale: 1.0
+  # Asymmetric and large. A contraindicated prescription must score strictly worse than
+  # a suboptimal-but-safe one, at every level of diagnostic accuracy.
+  contraindication_penalty: 4.0

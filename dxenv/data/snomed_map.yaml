@@ -1,0 +1,11 @@
+# SNOMED CT concept id -> dxenv label slug.
+#
+# PROVISIONAL AND INCOMPLETE. Kept separate from labels.yaml so terminology-release
+# churn cannot move the frozen label-set hash.
+#
+# Before running against real Synthea output, every code a module emits must appear here.
+# `map_snomed` raises on a miss -- that is deliberate. A fallback bucket would silently
+# drop conditions and bias the prior, which is exactly the failure Gate A is meant to
+# catch and would not.
+complete: false
+codes: {}

@@ -1,0 +1,47 @@
+# Severity weights by urgency tier.
+#
+# THIS IS A VALUE JUDGEMENT AND SHOULD BE READ AS ONE. It is a simulation parameter that
+# shapes RL dynamics, not a clinical statement about how much any condition matters.
+#
+# Why weights exist at all: with a flat weight the score-maximising policy nails the
+# common benign conditions and eats the rare-severe tail, because the tail is rare. That
+# is the wrong incentive for a diagnostic agent and it is invisible in aggregate
+# accuracy. Weighting by urgency buys the tail back.
+#
+# Why these numbers: the ratio between tier 4 and tier 1 (6x) is the only real choice
+# here. Too flat and the tail is ignored; too steep and the agent guesses "emergency" on
+# every ambiguous presentation, because the expected weighted score of a low-probability
+# high-weight condition beats a confident benign call. 6x keeps a tier-4 guess from
+# paying off below roughly a 1-in-6 posterior, which is the behaviour we want.
+#
+# Revisit after the first full training run: if the cost-accuracy frontier shows the
+# policy over-calling emergencies at low budget, this ratio is the first thing to lower.
+version: 1
+
+tiers:
+  1:
+    weight: 1.0
+    label: benign or chronic-stable
+    rationale: >
+      Missing it is inconvenient and usually self-correcting at the next visit.
+  2:
+    weight: 1.8
+    label: needs treatment, not time-critical
+    rationale: >
+      Delay causes avoidable morbidity but the window is weeks, not hours.
+  3:
+    weight: 3.2
+    label: urgent
+    rationale: >
+      The window is hours to days. Missing it changes the outcome.
+  4:
+    weight: 6.0
+    label: emergent or life-threatening
+    rationale: >
+      Missing it plausibly kills. Weighted so an agent should pay real cost to rule it
+      out, but not so much that ruling it in becomes a free option.
+
+# Applied as: terminal_score = brier_score(p, c_true) * weight(urgency(c_true)).
+# Note the weight keys on the TRUE condition, not the reported one, so the agent cannot
+# inflate its score by reporting high-urgency conditions.
+weight_applies_to: true_condition

@@ -1,0 +1,95 @@
+# Price list for orderable tests, in abstract cost units.
+#
+# Read by BOTH env/episode.py (for the budget ledger -- what an order costs to place) and
+# reward/costs.py (for the reward term -- what an order costs you). One file, so the two
+# cannot drift; env/ does not import reward/ and vice versa.
+#
+# These are simulation parameters. The relative ordering across categories is what
+# matters -- bedside < lab < micro < imaging < procedure -- because it is the ordering
+# that shapes which investigations an agent learns to reach for first.
+#
+# test_cost_table_covers_menu asserts EVERY orderable action has an entry. A missing
+# entry raises; it does not default to zero, because a free test is an infinite-value
+# test and the agent will find it.
+version: 1
+default: null   # explicitly no default. A miss is an error, not a zero.
+
+tests:
+  # bedside
+  glucose_fingerstick: 1.0
+  ecg: 3.0
+  spirometry: 4.0
+  skin_exam: 2.0
+  cognitive_screen: 3.0
+  mood_screen: 3.0
+  sleep_study: 45.0
+  # routine labs
+  cbc: 5.0
+  hemoglobin_only: 2.0
+  platelet_count: 2.0
+  reticulocyte_count: 4.0
+  peripheral_smear: 7.0
+  coagulation_panel: 5.0
+  d_dimer: 8.0
+  bmp: 5.0
+  cmp: 7.0
+  electrolytes_focused: 4.0
+  renal_function: 3.0
+  serum_osmolality: 5.0
+  uric_acid: 3.0
+  liver_panel: 6.0
+  lipase: 4.0
+  ammonia: 8.0
+  troponin: 9.0
+  bnp: 10.0
+  creatine_kinase: 4.0
+  crp: 4.0
+  esr: 3.0
+  procalcitonin: 12.0
+  lactate: 5.0
+  thyroid_panel: 8.0
+  hba1c: 6.0
+  lipid_panel: 5.0
+  cortisol_am: 10.0
+  pth: 12.0
+  iron_studies: 8.0
+  b12_folate: 7.0
+  vitamin_d: 9.0
+  ketones: 4.0
+  hcg_quant: 6.0
+  arterial_blood_gas: 9.0
+  carboxyhemoglobin: 7.0
+  urinalysis: 3.0
+  ana: 11.0
+  rf_anti_ccp: 14.0
+  spep: 15.0
+  toxicology_screen: 9.0
+  acetaminophen_level: 6.0
+  # microbiology and serology
+  urine_culture: 10.0
+  blood_culture: 18.0
+  stool_studies: 14.0
+  respiratory_pcr: 20.0
+  rapid_strep: 5.0
+  monospot: 6.0
+  hiv_test: 12.0
+  hepatitis_serology: 16.0
+  tb_igra: 22.0
+  lyme_serology: 15.0
+  # imaging
+  chest_xray: 25.0
+  hip_xray: 22.0
+  abdominal_us: 40.0
+  pelvic_us: 40.0
+  leg_doppler: 45.0
+  echocardiogram: 60.0
+  bone_density: 35.0
+  ct_head: 75.0
+  ct_chest: 95.0
+  ct_abdomen: 100.0
+  mri_brain: 140.0
+  # procedures
+  lumbar_puncture: 90.0
+  joint_aspiration: 70.0
+  upper_endoscopy: 150.0
+  colonoscopy: 180.0

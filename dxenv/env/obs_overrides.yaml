@@ -1,0 +1,1111 @@
+# p(result | condition) overrides, keyed condition -> analyte -> distribution.
+#
+# Any (condition, analyte) pair NOT listed here inherits the analyte's `healthy`
+# distribution from catalog.yaml. That inheritance happens once, at build time, in
+# obs_model.build_observation_model(), which materialises the FULL cross product. There
+# is no runtime fallback: a lookup miss in the built model raises. See I4.
+#
+# THESE ARE SIMULATION PARAMETERS, NOT CLINICAL REFERENCE VALUES. They are chosen so the
+# environment has learnable, non-degenerate structure -- separable enough that tests are
+# worth ordering, overlapping enough that a single test rarely settles the question. Do
+# not read them as guidance, and do not "improve" one toward realism without checking
+# what it does to the Bayes ceiling and to Gate A's T-V margin.
+#
+# Quantitative: {mean, sd} of a normal truncated to the analyte's bounds.
+# Categorical:  explicit probability per declared result value; must sum to 1.
+
+# ---------------------------------------------------------------- cardiovascular ----
+acute_myocardial_infarction:
+  presenting_complaint: {chest_pain: 0.66, dyspnea: 0.14, nausea_vomiting: 0.07, syncope: 0.04, fatigue: 0.05, confusion: 0.04}
+  heart_rate: {mean: 96.0, sd: 18.0}
+  systolic_bp: {mean: 133.0, sd: 26.0}
+  pain_score: {mean: 7.0, sd: 2.0}
+  troponin: {mean: 1200.0, sd: 900.0}
+  ck: {mean: 640.0, sd: 380.0}
+  ecg_finding: {st_elevation: 0.40, st_depression: 0.22, t_wave_inversion: 0.19, sinus_tachycardia: 0.10, normal_sinus: 0.05, irregularly_irregular_no_p_waves: 0.04}
+  echo_finding: {regional_wall_motion_abnormality: 0.66, reduced_ejection_fraction: 0.16, normal: 0.14, preserved_ef_diastolic_dysfunction: 0.04}
+  crp: {mean: 14.0, sd: 9.0}
+unstable_angina:
+  presenting_complaint: {chest_pain: 0.74, dyspnea: 0.12, fatigue: 0.06, nausea_vomiting: 0.04, palpitations: 0.04}
+  pain_score: {mean: 5.6, sd: 2.1}
+  troponin: {mean: 11.0, sd: 5.0}
+  ecg_finding: {st_depression: 0.34, t_wave_inversion: 0.30, normal_sinus: 0.22, sinus_tachycardia: 0.10, st_elevation: 0.04}
+  echo_finding: {normal: 0.52, regional_wall_motion_abnormality: 0.28, preserved_ef_diastolic_dysfunction: 0.20}
+stable_angina:
+  presenting_complaint: {chest_pain: 0.78, dyspnea: 0.12, fatigue: 0.06, routine_review: 0.04}
+  pain_score: {mean: 3.4, sd: 1.8}
+  troponin: {mean: 7.0, sd: 3.2}
+  ecg_finding: {normal_sinus: 0.58, t_wave_inversion: 0.16, st_depression: 0.14, left_ventricular_hypertrophy: 0.12}
+  ldl: {mean: 148.0, sd: 34.0}
+heart_failure_reduced_ef:
+  presenting_complaint: {dyspnea: 0.52, leg_swelling: 0.20, fatigue: 0.14, cough: 0.08, chest_pain: 0.06}
+  heart_rate: {mean: 94.0, sd: 16.0}
+  respiratory_rate: {mean: 23.0, sd: 4.5}
+  spo2: {mean: 92.0, sd: 3.5}
+  bnp: {mean: 1750.0, sd: 1100.0}
+  echo_finding: {reduced_ejection_fraction: 0.78, regional_wall_motion_abnormality: 0.12, normal: 0.04, preserved_ef_diastolic_dysfunction: 0.06}
+  chest_xray_finding: {pulmonary_edema: 0.50, cardiomegaly: 0.24, blunted_costophrenic_angle: 0.14, normal: 0.12}
+  creatinine: {mean: 1.35, sd: 0.45}
+heart_failure_preserved_ef:
+  presenting_complaint: {dyspnea: 0.48, leg_swelling: 0.22, fatigue: 0.18, cough: 0.06, routine_review: 0.06}
+  bnp: {mean: 560.0, sd: 340.0}
+  echo_finding: {preserved_ef_diastolic_dysfunction: 0.80, normal: 0.08, aortic_valve_gradient_elevated: 0.06, reduced_ejection_fraction: 0.06}
+  chest_xray_finding: {cardiomegaly: 0.34, pulmonary_edema: 0.24, normal: 0.28, blunted_costophrenic_angle: 0.14}
+  bmi: {mean: 33.0, sd: 5.5}
+  systolic_bp: {mean: 146.0, sd: 18.0}
+atrial_fibrillation:
+  presenting_complaint: {palpitations: 0.44, dyspnea: 0.18, dizziness: 0.12, chest_pain: 0.10, syncope: 0.06, fatigue: 0.10}
+  heart_rate: {mean: 122.0, sd: 26.0}
+  ecg_finding: {irregularly_irregular_no_p_waves: 0.92, sinus_tachycardia: 0.04, normal_sinus: 0.02, low_voltage: 0.02}
+  tsh: {mean: 1.6, sd: 1.2}
+  bnp: {mean: 280.0, sd: 190.0}
+supraventricular_tachycardia:
+  presenting_complaint: {palpitations: 0.62, dizziness: 0.14, chest_pain: 0.10, syncope: 0.08, dyspnea: 0.06}
+  heart_rate: {mean: 178.0, sd: 20.0}
+  ecg_finding: {sinus_tachycardia: 0.30, normal_sinus: 0.44, st_depression: 0.18, irregularly_irregular_no_p_waves: 0.08}
+  troponin: {mean: 16.0, sd: 9.0}
+essential_hypertension:
+  presenting_complaint: {routine_review: 0.62, headache: 0.14, dizziness: 0.08, chest_pain: 0.06, fatigue: 0.10}
+  systolic_bp: {mean: 152.0, sd: 13.0}
+  diastolic_bp: {mean: 94.0, sd: 8.0}
+  ecg_finding: {normal_sinus: 0.62, left_ventricular_hypertrophy: 0.30, t_wave_inversion: 0.05, st_depression: 0.03}
+  creatinine: {mean: 1.05, sd: 0.25}
+hypertensive_emergency:
+  presenting_complaint: {headache: 0.32, dyspnea: 0.20, chest_pain: 0.16, vision_change: 0.14, confusion: 0.12, focal_weakness: 0.06}
+  systolic_bp: {mean: 212.0, sd: 18.0}
+  diastolic_bp: {mean: 124.0, sd: 11.0}
+  creatinine: {mean: 1.75, sd: 0.7}
+  troponin: {mean: 42.0, sd: 30.0}
+  ecg_finding: {left_ventricular_hypertrophy: 0.48, st_depression: 0.20, normal_sinus: 0.18, t_wave_inversion: 0.14}
+aortic_dissection:
+  presenting_complaint: {chest_pain: 0.62, lumbar_pain: 0.22, syncope: 0.08, focal_weakness: 0.05, abdominal_pain: 0.03}
+  pain_score: {mean: 8.8, sd: 1.3}
+  systolic_bp: {mean: 168.0, sd: 34.0}
+  ct_chest_finding: {aortic_intimal_flap: 0.88, normal: 0.04, effusion: 0.05, mediastinal_lymphadenopathy: 0.03}
+  chest_xray_finding: {normal: 0.44, cardiomegaly: 0.32, blunted_costophrenic_angle: 0.24}
+  d_dimer: {mean: 3100.0, sd: 1800.0}
+  troponin: {mean: 22.0, sd: 18.0}
+pulmonary_embolism:
+  presenting_complaint: {dyspnea: 0.48, chest_pain: 0.28, syncope: 0.08, palpitations: 0.06, cough: 0.06, leg_swelling: 0.04}
+  heart_rate: {mean: 108.0, sd: 18.0}
+  respiratory_rate: {mean: 25.0, sd: 5.0}
+  spo2: {mean: 91.0, sd: 4.0}
+  d_dimer: {mean: 3400.0, sd: 2100.0}
+  ct_chest_finding: {filling_defect_pulmonary_artery: 0.86, normal: 0.06, consolidation: 0.04, effusion: 0.04}
+  ecg_finding: {sinus_tachycardia: 0.46, right_heart_strain: 0.22, normal_sinus: 0.24, t_wave_inversion: 0.08}
+  echo_finding: {normal: 0.52, right_ventricular_strain: 0.42, reduced_ejection_fraction: 0.06}
+  troponin: {mean: 28.0, sd: 22.0}
+deep_vein_thrombosis:
+  presenting_complaint: {leg_swelling: 0.72, lumbar_pain: 0.06, joint_pain: 0.10, chest_pain: 0.04, dyspnea: 0.08}
+  d_dimer: {mean: 2400.0, sd: 1400.0}
+  leg_doppler_finding: {noncompressible_vein_with_thrombus: 0.90, superficial_thrombophlebitis: 0.05, normal: 0.03, chronic_post_thrombotic_change: 0.02}
+  ct_chest_finding: {normal: 0.86, filling_defect_pulmonary_artery: 0.10, effusion: 0.04}
+peripheral_artery_disease:
+  presenting_complaint: {joint_pain: 0.30, lumbar_pain: 0.16, leg_swelling: 0.18, routine_review: 0.24, fatigue: 0.12}
+  ldl: {mean: 146.0, sd: 33.0}
+  hba1c: {mean: 6.6, sd: 1.2}
+  leg_doppler_finding: {normal: 0.74, chronic_post_thrombotic_change: 0.18, superficial_thrombophlebitis: 0.05, noncompressible_vein_with_thrombus: 0.03}
+infective_endocarditis:
+  presenting_complaint: {fever: 0.52, fatigue: 0.16, dyspnea: 0.12, lumbar_pain: 0.08, focal_weakness: 0.06, rash: 0.06}
+  temperature: {mean: 38.7, sd: 0.7}
+  blood_culture: {gram_positive_cocci: 0.72, gram_negative_rods: 0.10, no_growth: 0.12, contaminant_skin_flora: 0.06}
+  echo_finding: {valvular_vegetation: 0.76, normal: 0.10, reduced_ejection_fraction: 0.08, aortic_valve_gradient_elevated: 0.06}
+  crp: {mean: 105.0, sd: 55.0}
+  esr: {mean: 68.0, sd: 26.0}
+  wbc: {mean: 14.5, sd: 4.5}
+acute_pericarditis:
+  presenting_complaint: {chest_pain: 0.72, dyspnea: 0.12, fever: 0.10, palpitations: 0.06}
+  pain_score: {mean: 6.2, sd: 1.9}
+  ecg_finding: {diffuse_st_elevation_pr_depression: 0.62, normal_sinus: 0.14, sinus_tachycardia: 0.14, st_elevation: 0.10}
+  crp: {mean: 48.0, sd: 26.0}
+  troponin: {mean: 34.0, sd: 28.0}
+  echo_finding: {normal: 0.62, pericardial_effusion_with_collapse: 0.24, preserved_ef_diastolic_dysfunction: 0.14}
+myocarditis:
+  presenting_complaint: {chest_pain: 0.40, dyspnea: 0.28, fatigue: 0.14, palpitations: 0.10, fever: 0.08}
+  troponin: {mean: 480.0, sd: 330.0}
+  ecg_finding: {t_wave_inversion: 0.30, sinus_tachycardia: 0.28, st_elevation: 0.18, normal_sinus: 0.14, low_voltage: 0.10}
+  echo_finding: {reduced_ejection_fraction: 0.60, normal: 0.18, regional_wall_motion_abnormality: 0.16, pericardial_effusion_with_collapse: 0.06}
+  crp: {mean: 42.0, sd: 24.0}
+  bnp: {mean: 620.0, sd: 400.0}
+cardiac_tamponade:
+  presenting_complaint: {dyspnea: 0.46, chest_pain: 0.22, syncope: 0.14, palpitations: 0.10, confusion: 0.08}
+  heart_rate: {mean: 124.0, sd: 18.0}
+  systolic_bp: {mean: 88.0, sd: 14.0}
+  ecg_finding: {low_voltage: 0.58, sinus_tachycardia: 0.30, normal_sinus: 0.06, irregularly_irregular_no_p_waves: 0.06}
+  echo_finding: {pericardial_effusion_with_collapse: 0.90, normal: 0.03, reduced_ejection_fraction: 0.04, right_ventricular_strain: 0.03}
+  chest_xray_finding: {cardiomegaly: 0.62, normal: 0.22, blunted_costophrenic_angle: 0.16}
+aortic_stenosis:
+  presenting_complaint: {dyspnea: 0.34, chest_pain: 0.22, syncope: 0.22, fatigue: 0.14, routine_review: 0.08}
+  echo_finding: {aortic_valve_gradient_elevated: 0.86, preserved_ef_diastolic_dysfunction: 0.06, reduced_ejection_fraction: 0.05, normal: 0.03}
+  bnp: {mean: 320.0, sd: 220.0}
+  ecg_finding: {left_ventricular_hypertrophy: 0.62, normal_sinus: 0.24, st_depression: 0.08, irregularly_irregular_no_p_waves: 0.06}
+
+# ------------------------------------------------------------------- respiratory ----
+community_acquired_pneumonia:
+  presenting_complaint: {cough: 0.42, fever: 0.24, dyspnea: 0.20, chest_pain: 0.08, confusion: 0.06}
+  temperature: {mean: 38.6, sd: 0.8}
+  respiratory_rate: {mean: 24.0, sd: 4.5}
+  spo2: {mean: 92.0, sd: 3.5}
+  heart_rate: {mean: 102.0, sd: 15.0}
+  wbc: {mean: 16.0, sd: 5.0}
+  neutrophil_pct: {mean: 82.0, sd: 7.0}
+  crp: {mean: 118.0, sd: 60.0}
+  procalcitonin: {mean: 3.4, sd: 2.6}
+  chest_xray_finding: {lobar_consolidation: 0.72, diffuse_interstitial_infiltrate: 0.10, blunted_costophrenic_angle: 0.09, normal: 0.09}
+  respiratory_pcr: {negative: 0.82, other_virus_positive: 0.08, influenza_positive: 0.05, sars_cov_2_positive: 0.03, rsv_positive: 0.02}
+aspiration_pneumonia:
+  presenting_complaint: {cough: 0.34, dyspnea: 0.26, fever: 0.22, confusion: 0.14, chest_pain: 0.04}
+  temperature: {mean: 38.3, sd: 0.9}
+  spo2: {mean: 90.0, sd: 4.5}
+  wbc: {mean: 15.0, sd: 5.0}
+  crp: {mean: 96.0, sd: 52.0}
+  chest_xray_finding: {lobar_consolidation: 0.60, diffuse_interstitial_infiltrate: 0.16, blunted_costophrenic_angle: 0.10, normal: 0.08, cavitary_lesion: 0.06}
+  cognitive_screen: {normal: 0.34, mild_impairment: 0.26, moderate_impairment: 0.26, severe_impairment: 0.14}
+covid19:
+  presenting_complaint: {cough: 0.34, fever: 0.26, dyspnea: 0.22, fatigue: 0.12, sore_throat: 0.06}
+  temperature: {mean: 38.2, sd: 0.8}
+  spo2: {mean: 93.0, sd: 4.0}
+  respiratory_rate: {mean: 21.0, sd: 4.0}
+  respiratory_pcr: {sars_cov_2_positive: 0.93, negative: 0.05, other_virus_positive: 0.01, influenza_positive: 0.01}
+  chest_xray_finding: {diffuse_interstitial_infiltrate: 0.44, normal: 0.36, lobar_consolidation: 0.14, blunted_costophrenic_angle: 0.06}
+  ct_chest_finding: {ground_glass: 0.68, normal: 0.16, consolidation: 0.12, effusion: 0.04}
+  lymphocyte_pct: {mean: 16.0, sd: 6.0}
+  d_dimer: {mean: 940.0, sd: 620.0}
+  crp: {mean: 58.0, sd: 38.0}
+influenza:
+  presenting_complaint: {fever: 0.34, cough: 0.30, fatigue: 0.16, sore_throat: 0.10, headache: 0.10}
+  temperature: {mean: 38.7, sd: 0.7}
+  respiratory_pcr: {influenza_positive: 0.92, negative: 0.05, other_virus_positive: 0.02, sars_cov_2_positive: 0.01}
+  wbc: {mean: 5.4, sd: 2.0}
+  lymphocyte_pct: {mean: 22.0, sd: 7.0}
+  chest_xray_finding: {normal: 0.84, diffuse_interstitial_infiltrate: 0.10, lobar_consolidation: 0.06}
+  crp: {mean: 26.0, sd: 18.0}
+acute_bronchitis:
+  presenting_complaint: {cough: 0.76, fever: 0.08, dyspnea: 0.08, sore_throat: 0.08}
+  temperature: {mean: 37.2, sd: 0.5}
+  chest_xray_finding: {normal: 0.92, diffuse_interstitial_infiltrate: 0.05, lobar_consolidation: 0.03}
+  wbc: {mean: 8.6, sd: 2.6}
+  crp: {mean: 12.0, sd: 9.0}
+  respiratory_pcr: {negative: 0.62, other_virus_positive: 0.28, rsv_positive: 0.06, influenza_positive: 0.02, sars_cov_2_positive: 0.02}
+asthma_exacerbation:
+  presenting_complaint: {dyspnea: 0.56, cough: 0.30, chest_pain: 0.08, fatigue: 0.06}
+  respiratory_rate: {mean: 26.0, sd: 5.0}
+  spo2: {mean: 92.0, sd: 3.5}
+  heart_rate: {mean: 108.0, sd: 16.0}
+  spirometry: {obstructive_reversible: 0.84, obstructive_fixed: 0.06, normal: 0.07, restrictive: 0.03}
+  chest_xray_finding: {normal: 0.78, hyperinflation: 0.18, diffuse_interstitial_infiltrate: 0.02, lobar_consolidation: 0.02}
+  po2: {mean: 74.0, sd: 12.0}
+copd_exacerbation:
+  presenting_complaint: {dyspnea: 0.52, cough: 0.32, fever: 0.08, chest_pain: 0.04, fatigue: 0.04}
+  respiratory_rate: {mean: 26.0, sd: 5.0}
+  spo2: {mean: 88.0, sd: 4.5}
+  spirometry: {obstructive_fixed: 0.86, obstructive_reversible: 0.08, restrictive: 0.04, normal: 0.02}
+  chest_xray_finding: {hyperinflation: 0.62, normal: 0.18, lobar_consolidation: 0.12, diffuse_interstitial_infiltrate: 0.08}
+  pco2: {mean: 54.0, sd: 9.0}
+  ph_arterial: {mean: 7.33, sd: 0.05}
+  bicarbonate: {mean: 30.0, sd: 3.5}
+pneumothorax:
+  presenting_complaint: {dyspnea: 0.46, chest_pain: 0.46, cough: 0.05, syncope: 0.03}
+  pain_score: {mean: 6.8, sd: 2.0}
+  respiratory_rate: {mean: 26.0, sd: 5.0}
+  spo2: {mean: 91.0, sd: 4.5}
+  chest_xray_finding: {absent_lung_markings_pleural_line: 0.88, normal: 0.06, hyperinflation: 0.04, blunted_costophrenic_angle: 0.02}
+  ct_chest_finding: {pleural_air_collection: 0.92, normal: 0.04, effusion: 0.04}
+pleural_effusion:
+  presenting_complaint: {dyspnea: 0.54, cough: 0.18, chest_pain: 0.18, fever: 0.06, fatigue: 0.04}
+  spo2: {mean: 92.0, sd: 3.5}
+  chest_xray_finding: {blunted_costophrenic_angle: 0.88, lobar_consolidation: 0.06, normal: 0.03, cardiomegaly: 0.03}
+  ct_chest_finding: {effusion: 0.82, consolidation: 0.08, normal: 0.04, mediastinal_lymphadenopathy: 0.06}
+  albumin: {mean: 3.2, sd: 0.5}
+lung_cancer:
+  presenting_complaint: {cough: 0.30, weight_loss: 0.24, dyspnea: 0.16, chest_pain: 0.12, bleeding: 0.10, fatigue: 0.08}
+  bmi: {mean: 22.0, sd: 4.0}
+  chest_xray_finding: {mass_lesion: 0.62, normal: 0.12, blunted_costophrenic_angle: 0.12, lobar_consolidation: 0.08, cavitary_lesion: 0.06}
+  ct_chest_finding: {spiculated_nodule: 0.66, mediastinal_lymphadenopathy: 0.18, consolidation: 0.06, normal: 0.04, effusion: 0.06}
+  hemoglobin: {mean: 11.6, sd: 1.8}
+  esr: {mean: 44.0, sd: 24.0}
+  calcium: {mean: 10.4, sd: 1.1}
+pulmonary_fibrosis:
+  presenting_complaint: {dyspnea: 0.58, cough: 0.28, fatigue: 0.10, chest_pain: 0.04}
+  spo2: {mean: 91.0, sd: 3.5}
+  spirometry: {restrictive: 0.86, normal: 0.06, obstructive_fixed: 0.05, obstructive_reversible: 0.03}
+  chest_xray_finding: {reticular_fibrosis: 0.68, diffuse_interstitial_infiltrate: 0.18, normal: 0.08, hyperinflation: 0.06}
+  ct_chest_finding: {honeycombing: 0.74, ground_glass: 0.14, normal: 0.06, consolidation: 0.06}
+obstructive_sleep_apnea:
+  presenting_complaint: {fatigue: 0.52, routine_review: 0.18, headache: 0.14, dyspnea: 0.10, mood_disturbance: 0.06}
+  bmi: {mean: 35.5, sd: 6.0}
+  sleep_study: {elevated_apnea_hypopnea_index: 0.88, mildly_elevated_ahi: 0.09, normal: 0.03}
+  systolic_bp: {mean: 140.0, sd: 14.0}
+  hemoglobin: {mean: 15.6, sd: 1.4}
+tuberculosis:
+  presenting_complaint: {cough: 0.42, weight_loss: 0.22, fever: 0.20, bleeding: 0.10, fatigue: 0.06}
+  temperature: {mean: 38.0, sd: 0.8}
+  bmi: {mean: 20.5, sd: 3.5}
+  tb_igra: {positive: 0.88, negative: 0.06, indeterminate: 0.06}
+  chest_xray_finding: {cavitary_lesion: 0.56, diffuse_interstitial_infiltrate: 0.20, lobar_consolidation: 0.14, normal: 0.06, blunted_costophrenic_angle: 0.04}
+  esr: {mean: 62.0, sd: 26.0}
+  hiv_ag_ab: {nonreactive: 0.88, reactive: 0.12}
+upper_respiratory_infection:
+  presenting_complaint: {cough: 0.34, sore_throat: 0.34, fever: 0.12, headache: 0.12, fatigue: 0.08}
+  temperature: {mean: 37.3, sd: 0.5}
+  respiratory_pcr: {other_virus_positive: 0.56, negative: 0.34, rsv_positive: 0.06, influenza_positive: 0.02, sars_cov_2_positive: 0.02}
+  rapid_strep: {negative: 0.94, positive: 0.06}
+  wbc: {mean: 7.8, sd: 2.4}
+acute_sinusitis:
+  presenting_complaint: {headache: 0.44, cough: 0.24, fever: 0.14, sore_throat: 0.12, fatigue: 0.06}
+  temperature: {mean: 37.6, sd: 0.6}
+  pain_score: {mean: 4.6, sd: 1.9}
+  crp: {mean: 22.0, sd: 15.0}
+  wbc: {mean: 10.2, sd: 3.0}
+streptococcal_pharyngitis:
+  presenting_complaint: {sore_throat: 0.72, fever: 0.16, headache: 0.06, nausea_vomiting: 0.06}
+  temperature: {mean: 38.4, sd: 0.7}
+  rapid_strep: {positive: 0.88, negative: 0.12}
+  wbc: {mean: 12.8, sd: 3.4}
+  monospot: {negative: 0.94, positive: 0.06}
+  crp: {mean: 34.0, sd: 20.0}
+allergic_rhinitis:
+  presenting_complaint: {cough: 0.28, sore_throat: 0.20, headache: 0.18, routine_review: 0.20, fatigue: 0.14}
+  temperature: {mean: 36.8, sd: 0.3}
+  wbc: {mean: 7.4, sd: 2.0}
+  skin_exam_finding: {normal: 0.66, wheals_transient: 0.14, flexural_lichenified_eczema: 0.14, silvery_plaques_extensor: 0.06}
+  spirometry: {normal: 0.78, obstructive_reversible: 0.16, restrictive: 0.04, obstructive_fixed: 0.02}
+
+# --------------------------------------------------------------------- endocrine ----
+type_1_diabetes:
+  presenting_complaint: {fatigue: 0.30, weight_loss: 0.26, dysuria: 0.12, routine_review: 0.14, nausea_vomiting: 0.10, vision_change: 0.08}
+  glucose: {mean: 265.0, sd: 90.0}
+  hba1c: {mean: 9.4, sd: 1.8}
+  bmi: {mean: 23.0, sd: 3.5}
+  beta_hydroxybutyrate: {mean: 0.9, sd: 0.6}
+  urine_protein: {mean: 22.0, sd: 18.0}
+type_2_diabetes:
+  presenting_complaint: {routine_review: 0.40, fatigue: 0.22, numbness_tingling: 0.12, vision_change: 0.10, dysuria: 0.08, weight_loss: 0.08}
+  glucose: {mean: 176.0, sd: 58.0}
+  hba1c: {mean: 8.1, sd: 1.4}
+  bmi: {mean: 33.5, sd: 5.5}
+  triglycerides: {mean: 205.0, sd: 85.0}
+  hdl: {mean: 41.0, sd: 10.0}
+  urine_protein: {mean: 28.0, sd: 24.0}
+diabetic_ketoacidosis:
+  presenting_complaint: {nausea_vomiting: 0.34, abdominal_pain: 0.20, dyspnea: 0.16, confusion: 0.16, fatigue: 0.14}
+  glucose: {mean: 480.0, sd: 140.0}
+  beta_hydroxybutyrate: {mean: 6.2, sd: 2.4}
+  ph_arterial: {mean: 7.16, sd: 0.10}
+  bicarbonate: {mean: 11.0, sd: 4.0}
+  anion_gap: {mean: 24.0, sd: 5.5}
+  potassium: {mean: 5.3, sd: 0.8}
+  respiratory_rate: {mean: 28.0, sd: 5.0}
+  hba1c: {mean: 11.0, sd: 2.0}
+hyperosmolar_hyperglycemic_state:
+  presenting_complaint: {confusion: 0.44, fatigue: 0.22, nausea_vomiting: 0.14, focal_weakness: 0.12, dizziness: 0.08}
+  glucose: {mean: 810.0, sd: 190.0}
+  osmolality: {mean: 340.0, sd: 16.0}
+  beta_hydroxybutyrate: {mean: 0.9, sd: 0.5}
+  ph_arterial: {mean: 7.35, sd: 0.05}
+  sodium: {mean: 149.0, sd: 6.0}
+  creatinine: {mean: 2.1, sd: 0.8}
+  hba1c: {mean: 11.6, sd: 2.0}
+hypoglycemia:
+  presenting_complaint: {confusion: 0.34, dizziness: 0.22, fatigue: 0.16, syncope: 0.14, palpitations: 0.14}
+  glucose: {mean: 42.0, sd: 10.0}
+  heart_rate: {mean: 104.0, sd: 16.0}
+  hba1c: {mean: 6.4, sd: 1.4}
+  cortisol_am: {mean: 18.0, sd: 6.0}
+hypothyroidism:
+  presenting_complaint: {fatigue: 0.42, weight_loss: 0.06, mood_disturbance: 0.16, routine_review: 0.20, joint_pain: 0.08, confusion: 0.08}
+  tsh: {mean: 16.5, sd: 9.0}
+  free_t4: {mean: 0.62, sd: 0.18}
+  heart_rate: {mean: 62.0, sd: 9.0}
+  bmi: {mean: 30.0, sd: 5.5}
+  ldl: {mean: 152.0, sd: 32.0}
+  hemoglobin: {mean: 12.4, sd: 1.5}
+hyperthyroidism:
+  presenting_complaint: {palpitations: 0.32, weight_loss: 0.24, fatigue: 0.14, mood_disturbance: 0.14, dyspnea: 0.08, vision_change: 0.08}
+  tsh: {mean: 0.02, sd: 0.02}
+  free_t4: {mean: 3.4, sd: 0.9}
+  heart_rate: {mean: 108.0, sd: 16.0}
+  bmi: {mean: 22.0, sd: 3.5}
+  ecg_finding: {sinus_tachycardia: 0.48, irregularly_irregular_no_p_waves: 0.20, normal_sinus: 0.26, st_depression: 0.06}
+thyroid_storm:
+  presenting_complaint: {fever: 0.28, palpitations: 0.24, confusion: 0.24, nausea_vomiting: 0.14, dyspnea: 0.10}
+  temperature: {mean: 39.6, sd: 0.8}
+  heart_rate: {mean: 152.0, sd: 20.0}
+  tsh: {mean: 0.01, sd: 0.01}
+  free_t4: {mean: 5.2, sd: 1.1}
+  ecg_finding: {sinus_tachycardia: 0.52, irregularly_irregular_no_p_waves: 0.36, normal_sinus: 0.06, st_depression: 0.06}
+adrenal_insufficiency:
+  presenting_complaint: {fatigue: 0.32, nausea_vomiting: 0.20, dizziness: 0.18, abdominal_pain: 0.14, weight_loss: 0.10, confusion: 0.06}
+  cortisol_am: {mean: 2.4, sd: 1.4}
+  sodium: {mean: 128.0, sd: 5.0}
+  potassium: {mean: 5.6, sd: 0.7}
+  glucose: {mean: 62.0, sd: 14.0}
+  systolic_bp: {mean: 88.0, sd: 13.0}
+  bmi: {mean: 21.5, sd: 3.5}
+cushing_syndrome:
+  presenting_complaint: {routine_review: 0.26, fatigue: 0.22, mood_disturbance: 0.16, lumbar_pain: 0.14, rash: 0.12, vision_change: 0.10}
+  cortisol_am: {mean: 32.0, sd: 9.0}
+  glucose: {mean: 142.0, sd: 36.0}
+  bmi: {mean: 34.0, sd: 5.0}
+  systolic_bp: {mean: 150.0, sd: 15.0}
+  potassium: {mean: 3.3, sd: 0.4}
+  bone_density: {osteopenia: 0.44, t_score_below_minus_2_5: 0.30, normal: 0.26}
+primary_hyperparathyroidism:
+  presenting_complaint: {routine_review: 0.34, fatigue: 0.18, lumbar_pain: 0.16, abdominal_pain: 0.14, confusion: 0.10, nausea_vomiting: 0.08}
+  calcium: {mean: 11.6, sd: 0.8}
+  pth: {mean: 148.0, sd: 60.0}
+  phosphate: {mean: 2.2, sd: 0.4}
+  bone_density: {osteopenia: 0.40, t_score_below_minus_2_5: 0.26, normal: 0.34}
+  creatinine: {mean: 1.15, sd: 0.35}
+dyslipidemia:
+  presenting_complaint: {routine_review: 0.72, fatigue: 0.10, chest_pain: 0.08, headache: 0.06, joint_pain: 0.04}
+  ldl: {mean: 178.0, sd: 32.0}
+  hdl: {mean: 39.0, sd: 9.0}
+  triglycerides: {mean: 245.0, sd: 95.0}
+  bmi: {mean: 30.5, sd: 5.0}
+gout:
+  presenting_complaint: {joint_pain: 0.82, fever: 0.06, lumbar_pain: 0.06, routine_review: 0.06}
+  pain_score: {mean: 8.0, sd: 1.6}
+  uric_acid: {mean: 9.4, sd: 1.6}
+  joint_aspirate: {negatively_birefringent_crystals: 0.86, inflammatory_no_crystals: 0.08, purulent_high_wbc: 0.03, noninflammatory: 0.03}
+  crp: {mean: 46.0, sd: 26.0}
+  wbc: {mean: 11.4, sd: 3.0}
+vitamin_d_deficiency:
+  presenting_complaint: {fatigue: 0.32, lumbar_pain: 0.22, joint_pain: 0.20, routine_review: 0.20, mood_disturbance: 0.06}
+  vitamin_d_25oh: {mean: 13.0, sd: 5.0}
+  calcium: {mean: 8.8, sd: 0.4}
+  pth: {mean: 78.0, sd: 26.0}
+  alk_phos: {mean: 118.0, sd: 30.0}
+  bone_density: {normal: 0.48, osteopenia: 0.38, t_score_below_minus_2_5: 0.14}
+hyponatremia:
+  presenting_complaint: {confusion: 0.32, nausea_vomiting: 0.20, fatigue: 0.18, headache: 0.12, seizure_event: 0.10, dizziness: 0.08}
+  sodium: {mean: 121.0, sd: 5.0}
+  chloride: {mean: 88.0, sd: 5.0}
+  osmolality: {mean: 258.0, sd: 10.0}
+  cognitive_screen: {mild_impairment: 0.34, normal: 0.34, moderate_impairment: 0.24, severe_impairment: 0.08}
+hyperkalemia:
+  presenting_complaint: {fatigue: 0.28, palpitations: 0.22, numbness_tingling: 0.18, routine_review: 0.18, dizziness: 0.14}
+  potassium: {mean: 6.6, sd: 0.7}
+  ecg_finding: {peaked_t_waves: 0.60, normal_sinus: 0.18, low_voltage: 0.08, irregularly_irregular_no_p_waves: 0.06, sinus_tachycardia: 0.08}
+  creatinine: {mean: 2.4, sd: 1.1}
+  egfr: {mean: 34.0, sd: 16.0}
+  bicarbonate: {mean: 19.0, sd: 3.5}
+hypercalcemia:
+  presenting_complaint: {confusion: 0.24, nausea_vomiting: 0.20, abdominal_pain: 0.18, fatigue: 0.20, lumbar_pain: 0.10, routine_review: 0.08}
+  calcium: {mean: 13.2, sd: 1.2}
+  pth: {mean: 12.0, sd: 8.0}
+  creatinine: {mean: 1.5, sd: 0.5}
+  spep: {normal: 0.56, monoclonal_spike: 0.26, polyclonal_increase: 0.18}
+  alk_phos: {mean: 168.0, sd: 60.0}
+
+# -------------------------------------------------------------- gastrointestinal ----
+acute_appendicitis:
+  presenting_complaint: {abdominal_pain: 0.80, nausea_vomiting: 0.12, fever: 0.06, diarrhea: 0.02}
+  pain_score: {mean: 7.4, sd: 1.7}
+  temperature: {mean: 37.9, sd: 0.7}
+  wbc: {mean: 15.2, sd: 4.0}
+  neutrophil_pct: {mean: 84.0, sd: 6.0}
+  crp: {mean: 68.0, sd: 40.0}
+  ct_abdomen_finding: {appendiceal_thickening: 0.86, normal: 0.05, free_air: 0.03, pericolonic_fat_stranding: 0.06}
+acute_cholecystitis:
+  presenting_complaint: {abdominal_pain: 0.74, nausea_vomiting: 0.16, fever: 0.08, lumbar_pain: 0.02}
+  pain_score: {mean: 7.2, sd: 1.8}
+  temperature: {mean: 38.1, sd: 0.7}
+  wbc: {mean: 14.4, sd: 4.0}
+  alk_phos: {mean: 168.0, sd: 60.0}
+  total_bilirubin: {mean: 1.6, sd: 0.7}
+  abdominal_us_finding: {gallstones_with_wall_thickening: 0.84, gallstones_only: 0.09, dilated_bile_duct: 0.04, normal: 0.03}
+  ct_abdomen_finding: {gallbladder_wall_thickening: 0.72, normal: 0.10, pericolonic_fat_stranding: 0.10, pancreatic_inflammation: 0.08}
+choledocholithiasis:
+  presenting_complaint: {abdominal_pain: 0.66, nausea_vomiting: 0.16, fever: 0.12, routine_review: 0.06}
+  total_bilirubin: {mean: 6.4, sd: 2.8}
+  alk_phos: {mean: 420.0, sd: 160.0}
+  alt: {mean: 240.0, sd: 110.0}
+  ast: {mean: 210.0, sd: 100.0}
+  abdominal_us_finding: {dilated_bile_duct: 0.76, gallstones_with_wall_thickening: 0.12, gallstones_only: 0.08, normal: 0.04}
+  lipase: {mean: 140.0, sd: 90.0}
+acute_pancreatitis:
+  presenting_complaint: {abdominal_pain: 0.72, nausea_vomiting: 0.20, lumbar_pain: 0.06, fever: 0.02}
+  pain_score: {mean: 8.2, sd: 1.5}
+  lipase: {mean: 1450.0, sd: 780.0}
+  wbc: {mean: 15.0, sd: 4.5}
+  calcium: {mean: 8.2, sd: 0.7}
+  triglycerides: {mean: 320.0, sd: 220.0}
+  ct_abdomen_finding: {pancreatic_inflammation: 0.82, normal: 0.06, gallbladder_wall_thickening: 0.06, pericolonic_fat_stranding: 0.06}
+  crp: {mean: 128.0, sd: 66.0}
+peptic_ulcer_disease:
+  presenting_complaint: {abdominal_pain: 0.62, nausea_vomiting: 0.14, bleeding: 0.16, fatigue: 0.08}
+  hemoglobin: {mean: 11.4, sd: 2.2}
+  endoscopy_finding: {gastroduodenal_ulcer: 0.82, esophagitis: 0.08, normal: 0.05, gastric_mass: 0.05}
+  stool_studies: {occult_blood_positive: 0.62, negative: 0.34, enteric_pathogen_positive: 0.02, c_difficile_toxin_positive: 0.02}
+  ferritin: {mean: 38.0, sd: 24.0}
+gastroesophageal_reflux:
+  presenting_complaint: {chest_pain: 0.34, abdominal_pain: 0.32, cough: 0.16, sore_throat: 0.10, nausea_vomiting: 0.08}
+  endoscopy_finding: {esophagitis: 0.56, normal: 0.36, gastroduodenal_ulcer: 0.06, gastric_mass: 0.02}
+  troponin: {mean: 6.5, sd: 3.0}
+  bmi: {mean: 30.0, sd: 5.0}
+viral_gastroenteritis:
+  presenting_complaint: {diarrhea: 0.46, nausea_vomiting: 0.34, abdominal_pain: 0.14, fever: 0.06}
+  temperature: {mean: 37.6, sd: 0.7}
+  stool_studies: {negative: 0.60, enteric_pathogen_positive: 0.34, occult_blood_positive: 0.04, c_difficile_toxin_positive: 0.02}
+  wbc: {mean: 9.4, sd: 3.0}
+  bun: {mean: 22.0, sd: 7.0}
+  bicarbonate: {mean: 21.0, sd: 3.0}
+clostridioides_difficile_colitis:
+  presenting_complaint: {diarrhea: 0.62, abdominal_pain: 0.20, fever: 0.12, nausea_vomiting: 0.06}
+  stool_studies: {c_difficile_toxin_positive: 0.90, negative: 0.05, enteric_pathogen_positive: 0.03, occult_blood_positive: 0.02}
+  wbc: {mean: 19.0, sd: 7.0}
+  albumin: {mean: 3.0, sd: 0.5}
+  creatinine: {mean: 1.4, sd: 0.6}
+  lactate: {mean: 2.2, sd: 1.0}
+diverticulitis:
+  presenting_complaint: {abdominal_pain: 0.72, fever: 0.12, diarrhea: 0.08, nausea_vomiting: 0.08}
+  temperature: {mean: 38.0, sd: 0.7}
+  wbc: {mean: 14.0, sd: 4.0}
+  crp: {mean: 82.0, sd: 44.0}
+  ct_abdomen_finding: {pericolonic_fat_stranding: 0.84, normal: 0.04, colonic_mass: 0.04, free_air: 0.04, appendiceal_thickening: 0.04}
+crohn_disease:
+  presenting_complaint: {abdominal_pain: 0.42, diarrhea: 0.30, weight_loss: 0.16, fever: 0.06, joint_pain: 0.06}
+  colonoscopy_finding: {skip_lesions_ulceration: 0.80, continuous_mucosal_inflammation: 0.08, normal: 0.05, polyps_benign: 0.04, mass_lesion: 0.03}
+  crp: {mean: 44.0, sd: 26.0}
+  hemoglobin: {mean: 11.2, sd: 1.8}
+  albumin: {mean: 3.2, sd: 0.5}
+  bmi: {mean: 21.5, sd: 3.5}
+  ferritin: {mean: 46.0, sd: 30.0}
+ulcerative_colitis:
+  presenting_complaint: {diarrhea: 0.44, bleeding: 0.28, abdominal_pain: 0.20, weight_loss: 0.08}
+  colonoscopy_finding: {continuous_mucosal_inflammation: 0.84, skip_lesions_ulceration: 0.07, normal: 0.04, polyps_benign: 0.03, mass_lesion: 0.02}
+  crp: {mean: 38.0, sd: 22.0}
+  hemoglobin: {mean: 11.0, sd: 1.9}
+  stool_studies: {occult_blood_positive: 0.72, negative: 0.22, enteric_pathogen_positive: 0.04, c_difficile_toxin_positive: 0.02}
+  albumin: {mean: 3.4, sd: 0.5}
+celiac_disease:
+  presenting_complaint: {diarrhea: 0.30, abdominal_pain: 0.22, fatigue: 0.18, weight_loss: 0.16, rash: 0.08, numbness_tingling: 0.06}
+  endoscopy_finding: {villous_atrophy: 0.82, normal: 0.12, esophagitis: 0.04, gastroduodenal_ulcer: 0.02}
+  hemoglobin: {mean: 11.6, sd: 1.6}
+  ferritin: {mean: 22.0, sd: 14.0}
+  vitamin_d_25oh: {mean: 20.0, sd: 8.0}
+  bone_density: {normal: 0.48, osteopenia: 0.38, t_score_below_minus_2_5: 0.14}
+irritable_bowel_syndrome:
+  presenting_complaint: {abdominal_pain: 0.52, diarrhea: 0.30, nausea_vomiting: 0.08, fatigue: 0.10}
+  colonoscopy_finding: {normal: 0.82, diverticulosis: 0.10, polyps_benign: 0.06, continuous_mucosal_inflammation: 0.02}
+  crp: {mean: 2.6, sd: 1.6}
+  stool_studies: {negative: 0.92, occult_blood_positive: 0.04, enteric_pathogen_positive: 0.03, c_difficile_toxin_positive: 0.01}
+hepatic_cirrhosis:
+  presenting_complaint: {abdominal_pain: 0.24, leg_swelling: 0.22, confusion: 0.18, fatigue: 0.18, bleeding: 0.12, weight_loss: 0.06}
+  total_bilirubin: {mean: 4.2, sd: 2.4}
+  albumin: {mean: 2.6, sd: 0.5}
+  inr: {mean: 1.8, sd: 0.5}
+  platelets: {mean: 92.0, sd: 38.0}
+  ast: {mean: 96.0, sd: 40.0}
+  alt: {mean: 68.0, sd: 30.0}
+  ammonia: {mean: 92.0, sd: 40.0}
+  abdominal_us_finding: {nodular_liver_ascites: 0.82, increased_hepatic_echogenicity: 0.09, normal: 0.04, gallstones_only: 0.05}
+  ct_abdomen_finding: {hepatic_nodularity_ascites: 0.78, normal: 0.08, colonic_mass: 0.04, pancreatic_mass: 0.04, gallbladder_wall_thickening: 0.06}
+alcoholic_hepatitis:
+  presenting_complaint: {abdominal_pain: 0.30, nausea_vomiting: 0.22, fatigue: 0.20, fever: 0.14, confusion: 0.14}
+  ast: {mean: 220.0, sd: 90.0}
+  alt: {mean: 92.0, sd: 40.0}
+  total_bilirubin: {mean: 7.8, sd: 3.6}
+  inr: {mean: 1.7, sd: 0.4}
+  mcv: {mean: 104.0, sd: 5.0}
+  wbc: {mean: 14.0, sd: 5.0}
+  abdominal_us_finding: {increased_hepatic_echogenicity: 0.52, nodular_liver_ascites: 0.30, normal: 0.10, gallstones_only: 0.08}
+chronic_hepatitis_b:
+  presenting_complaint: {routine_review: 0.44, fatigue: 0.28, abdominal_pain: 0.14, nausea_vomiting: 0.08, joint_pain: 0.06}
+  hepatitis_serology: {hbsag_positive: 0.92, nonreactive: 0.04, hcv_antibody_positive: 0.02, immune_vaccinated: 0.02}
+  alt: {mean: 88.0, sd: 44.0}
+  ast: {mean: 72.0, sd: 34.0}
+  platelets: {mean: 178.0, sd: 50.0}
+chronic_hepatitis_c:
+  presenting_complaint: {routine_review: 0.42, fatigue: 0.30, abdominal_pain: 0.12, joint_pain: 0.10, rash: 0.06}
+  hepatitis_serology: {hcv_antibody_positive: 0.92, nonreactive: 0.04, hbsag_positive: 0.02, immune_vaccinated: 0.02}
+  alt: {mean: 104.0, sd: 50.0}
+  ast: {mean: 86.0, sd: 40.0}
+  platelets: {mean: 162.0, sd: 52.0}
+nonalcoholic_fatty_liver:
+  presenting_complaint: {routine_review: 0.52, fatigue: 0.22, abdominal_pain: 0.18, nausea_vomiting: 0.08}
+  alt: {mean: 62.0, sd: 26.0}
+  ast: {mean: 48.0, sd: 20.0}
+  bmi: {mean: 34.5, sd: 5.5}
+  triglycerides: {mean: 224.0, sd: 80.0}
+  hba1c: {mean: 6.4, sd: 1.0}
+  abdominal_us_finding: {increased_hepatic_echogenicity: 0.86, normal: 0.06, gallstones_only: 0.05, nodular_liver_ascites: 0.03}
+upper_gi_bleed:
+  presenting_complaint: {bleeding: 0.62, abdominal_pain: 0.14, dizziness: 0.12, nausea_vomiting: 0.08, syncope: 0.04}
+  hemoglobin: {mean: 8.2, sd: 1.9}
+  heart_rate: {mean: 112.0, sd: 18.0}
+  systolic_bp: {mean: 98.0, sd: 18.0}
+  bun: {mean: 42.0, sd: 14.0}
+  endoscopy_finding: {gastroduodenal_ulcer: 0.48, bleeding_varices: 0.28, esophagitis: 0.12, gastric_mass: 0.08, normal: 0.04}
+  stool_studies: {occult_blood_positive: 0.86, negative: 0.10, enteric_pathogen_positive: 0.02, c_difficile_toxin_positive: 0.02}
+small_bowel_obstruction:
+  presenting_complaint: {abdominal_pain: 0.56, nausea_vomiting: 0.36, diarrhea: 0.04, fever: 0.04}
+  pain_score: {mean: 7.6, sd: 1.8}
+  ct_abdomen_finding: {dilated_loops_transition_point: 0.86, free_air: 0.04, normal: 0.04, pericolonic_fat_stranding: 0.06}
+  lactate: {mean: 2.8, sd: 1.4}
+  wbc: {mean: 13.6, sd: 4.5}
+  bicarbonate: {mean: 21.0, sd: 3.5}
+colorectal_cancer:
+  presenting_complaint: {bleeding: 0.28, abdominal_pain: 0.22, weight_loss: 0.20, fatigue: 0.16, diarrhea: 0.14}
+  hemoglobin: {mean: 9.8, sd: 1.9}
+  mcv: {mean: 76.0, sd: 6.0}
+  ferritin: {mean: 14.0, sd: 9.0}
+  colonoscopy_finding: {mass_lesion: 0.84, polyps_benign: 0.06, diverticulosis: 0.04, continuous_mucosal_inflammation: 0.03, normal: 0.03}
+  ct_abdomen_finding: {colonic_mass: 0.72, normal: 0.08, pericolonic_fat_stranding: 0.10, hepatic_nodularity_ascites: 0.10}
+  stool_studies: {occult_blood_positive: 0.76, negative: 0.20, enteric_pathogen_positive: 0.02, c_difficile_toxin_positive: 0.02}
+pancreatic_cancer:
+  presenting_complaint: {abdominal_pain: 0.30, weight_loss: 0.28, lumbar_pain: 0.16, nausea_vomiting: 0.14, fatigue: 0.12}
+  total_bilirubin: {mean: 8.6, sd: 4.0}
+  alk_phos: {mean: 380.0, sd: 150.0}
+  ct_abdomen_finding: {pancreatic_mass: 0.84, pancreatic_inflammation: 0.06, hepatic_nodularity_ascites: 0.05, normal: 0.05}
+  abdominal_us_finding: {dilated_bile_duct: 0.62, normal: 0.14, increased_hepatic_echogenicity: 0.10, nodular_liver_ascites: 0.14}
+  bmi: {mean: 21.0, sd: 3.5}
+  glucose: {mean: 158.0, sd: 46.0}
+
+# ------------------------------------------------------------------------- renal ----
+acute_kidney_injury:
+  presenting_complaint: {fatigue: 0.24, nausea_vomiting: 0.20, confusion: 0.16, leg_swelling: 0.16, dysuria: 0.14, routine_review: 0.10}
+  creatinine: {mean: 3.4, sd: 1.5}
+  egfr: {mean: 22.0, sd: 11.0}
+  bun: {mean: 58.0, sd: 22.0}
+  potassium: {mean: 5.4, sd: 0.8}
+  bicarbonate: {mean: 18.0, sd: 3.5}
+  urine_protein: {mean: 48.0, sd: 34.0}
+chronic_kidney_disease:
+  presenting_complaint: {routine_review: 0.40, fatigue: 0.24, leg_swelling: 0.16, numbness_tingling: 0.08, nausea_vomiting: 0.06, dysuria: 0.06}
+  creatinine: {mean: 2.3, sd: 0.9}
+  egfr: {mean: 36.0, sd: 14.0}
+  hemoglobin: {mean: 10.6, sd: 1.5}
+  phosphate: {mean: 5.0, sd: 0.9}
+  pth: {mean: 168.0, sd: 70.0}
+  urine_protein: {mean: 82.0, sd: 55.0}
+  systolic_bp: {mean: 148.0, sd: 16.0}
+nephrolithiasis:
+  presenting_complaint: {lumbar_pain: 0.50, abdominal_pain: 0.30, nausea_vomiting: 0.12, dysuria: 0.08}
+  pain_score: {mean: 8.6, sd: 1.4}
+  urine_rbc: {mean: 38.0, sd: 22.0}
+  ct_abdomen_finding: {ureteral_calculus: 0.88, normal: 0.04, appendiceal_thickening: 0.04, pericolonic_fat_stranding: 0.04}
+  abdominal_us_finding: {hydronephrosis: 0.62, normal: 0.26, gallstones_only: 0.06, increased_hepatic_echogenicity: 0.06}
+  creatinine: {mean: 1.25, sd: 0.4}
+urinary_tract_infection:
+  presenting_complaint: {dysuria: 0.66, abdominal_pain: 0.14, fever: 0.08, confusion: 0.08, lumbar_pain: 0.04}
+  urine_wbc: {mean: 62.0, sd: 34.0}
+  urine_culture: {e_coli_high_count: 0.70, other_uropathogen: 0.20, mixed_flora: 0.06, no_growth: 0.04}
+  urine_rbc: {mean: 12.0, sd: 9.0}
+  temperature: {mean: 37.4, sd: 0.6}
+  wbc: {mean: 10.6, sd: 3.2}
+pyelonephritis:
+  presenting_complaint: {lumbar_pain: 0.36, fever: 0.28, dysuria: 0.20, nausea_vomiting: 0.12, abdominal_pain: 0.04}
+  temperature: {mean: 38.9, sd: 0.7}
+  urine_wbc: {mean: 96.0, sd: 44.0}
+  urine_culture: {e_coli_high_count: 0.74, other_uropathogen: 0.18, no_growth: 0.05, mixed_flora: 0.03}
+  wbc: {mean: 16.8, sd: 5.0}
+  crp: {mean: 128.0, sd: 60.0}
+  blood_culture: {no_growth: 0.68, gram_negative_rods: 0.26, gram_positive_cocci: 0.03, contaminant_skin_flora: 0.03}
+  abdominal_us_finding: {normal: 0.62, hydronephrosis: 0.28, gallstones_only: 0.05, increased_hepatic_echogenicity: 0.05}
+benign_prostatic_hyperplasia:
+  presenting_complaint: {dysuria: 0.54, routine_review: 0.24, abdominal_pain: 0.10, lumbar_pain: 0.06, bleeding: 0.06}
+  urine_wbc: {mean: 6.0, sd: 4.0}
+  urine_culture: {no_growth: 0.74, mixed_flora: 0.16, other_uropathogen: 0.06, e_coli_high_count: 0.04}
+  creatinine: {mean: 1.15, sd: 0.35}
+  abdominal_us_finding: {normal: 0.66, hydronephrosis: 0.22, increased_hepatic_echogenicity: 0.08, gallstones_only: 0.04}
+prostate_cancer:
+  presenting_complaint: {routine_review: 0.38, dysuria: 0.22, lumbar_pain: 0.18, bleeding: 0.12, weight_loss: 0.10}
+  alk_phos: {mean: 186.0, sd: 90.0}
+  hemoglobin: {mean: 12.2, sd: 1.7}
+  bone_density: {normal: 0.56, osteopenia: 0.32, t_score_below_minus_2_5: 0.12}
+  urine_rbc: {mean: 8.0, sd: 6.0}
+nephrotic_syndrome:
+  presenting_complaint: {leg_swelling: 0.62, fatigue: 0.16, dyspnea: 0.10, abdominal_pain: 0.08, routine_review: 0.04}
+  urine_protein: {mean: 620.0, sd: 260.0}
+  albumin: {mean: 2.1, sd: 0.5}
+  ldl: {mean: 246.0, sd: 60.0}
+  triglycerides: {mean: 320.0, sd: 120.0}
+  creatinine: {mean: 1.5, sd: 0.6}
+  ana: {negative: 0.72, low_titre_positive: 0.18, high_titre_positive: 0.10}
+glomerulonephritis:
+  presenting_complaint: {bleeding: 0.26, leg_swelling: 0.26, fatigue: 0.18, lumbar_pain: 0.14, routine_review: 0.16}
+  urine_rbc: {mean: 92.0, sd: 44.0}
+  urine_protein: {mean: 220.0, sd: 120.0}
+  creatinine: {mean: 2.4, sd: 1.0}
+  systolic_bp: {mean: 158.0, sd: 18.0}
+  ana: {negative: 0.62, low_titre_positive: 0.22, high_titre_positive: 0.16}
+  crp: {mean: 32.0, sd: 20.0}
+
+# -------------------------------------------------------------------- neurologic ----
+ischemic_stroke:
+  presenting_complaint: {focal_weakness: 0.58, vision_change: 0.14, confusion: 0.12, dizziness: 0.10, numbness_tingling: 0.06}
+  systolic_bp: {mean: 168.0, sd: 24.0}
+  ct_head_finding: {hypodensity_vascular_territory: 0.52, normal: 0.30, small_vessel_disease: 0.14, hyperdense_intraparenchymal_blood: 0.04}
+  mri_brain_finding: {diffusion_restriction: 0.90, normal: 0.04, microhemorrhages: 0.04, mass_lesion: 0.02}
+  ecg_finding: {irregularly_irregular_no_p_waves: 0.28, normal_sinus: 0.48, left_ventricular_hypertrophy: 0.14, sinus_tachycardia: 0.10}
+  glucose: {mean: 138.0, sd: 44.0}
+hemorrhagic_stroke:
+  presenting_complaint: {focal_weakness: 0.40, headache: 0.24, confusion: 0.20, vision_change: 0.08, seizure_event: 0.08}
+  systolic_bp: {mean: 192.0, sd: 26.0}
+  ct_head_finding: {hyperdense_intraparenchymal_blood: 0.92, normal: 0.02, hypodensity_vascular_territory: 0.03, mass_effect_lesion: 0.03}
+  mri_brain_finding: {microhemorrhages: 0.62, diffusion_restriction: 0.16, normal: 0.10, mass_lesion: 0.12}
+  inr: {mean: 1.6, sd: 0.7}
+  pain_score: {mean: 6.4, sd: 2.4}
+subarachnoid_hemorrhage:
+  presenting_complaint: {headache: 0.72, confusion: 0.10, seizure_event: 0.06, focal_weakness: 0.06, syncope: 0.06}
+  pain_score: {mean: 9.2, sd: 1.0}
+  ct_head_finding: {subarachnoid_blood: 0.88, normal: 0.06, hyperdense_intraparenchymal_blood: 0.04, mass_effect_lesion: 0.02}
+  csf_profile: {xanthochromia: 0.72, lymphocytic_with_rbc: 0.16, normal: 0.08, elevated_protein_normal_cells: 0.04}
+  systolic_bp: {mean: 178.0, sd: 26.0}
+transient_ischemic_attack:
+  presenting_complaint: {focal_weakness: 0.42, vision_change: 0.20, numbness_tingling: 0.16, dizziness: 0.14, confusion: 0.08}
+  ct_head_finding: {normal: 0.62, small_vessel_disease: 0.26, hypodensity_vascular_territory: 0.08, atrophy: 0.04}
+  mri_brain_finding: {normal: 0.68, diffusion_restriction: 0.14, microhemorrhages: 0.12, mesial_temporal_atrophy: 0.06}
+  ecg_finding: {normal_sinus: 0.54, irregularly_irregular_no_p_waves: 0.22, left_ventricular_hypertrophy: 0.14, sinus_tachycardia: 0.10}
+  ldl: {mean: 142.0, sd: 34.0}
+migraine:
+  presenting_complaint: {headache: 0.74, vision_change: 0.12, nausea_vomiting: 0.10, dizziness: 0.04}
+  pain_score: {mean: 7.4, sd: 1.6}
+  ct_head_finding: {normal: 0.92, small_vessel_disease: 0.05, atrophy: 0.03}
+  mri_brain_finding: {normal: 0.88, microhemorrhages: 0.06, periventricular_demyelinating_lesions: 0.06}
+  esr: {mean: 10.0, sd: 5.0}
+tension_headache:
+  presenting_complaint: {headache: 0.80, fatigue: 0.10, dizziness: 0.06, mood_disturbance: 0.04}
+  pain_score: {mean: 4.6, sd: 1.6}
+  ct_head_finding: {normal: 0.94, small_vessel_disease: 0.04, atrophy: 0.02}
+  esr: {mean: 9.5, sd: 5.0}
+epilepsy:
+  presenting_complaint: {seizure_event: 0.64, confusion: 0.16, focal_weakness: 0.08, dizziness: 0.06, syncope: 0.06}
+  mri_brain_finding: {mesial_temporal_atrophy: 0.42, normal: 0.36, mass_lesion: 0.10, diffusion_restriction: 0.06, microhemorrhages: 0.06}
+  ck: {mean: 480.0, sd: 320.0}
+  lactate: {mean: 3.6, sd: 1.8}
+  sodium: {mean: 138.0, sd: 4.0}
+  toxicology_screen: {negative: 0.82, opioids_positive: 0.06, stimulants_positive: 0.06, multiple_positive: 0.06}
+status_epilepticus:
+  presenting_complaint: {seizure_event: 0.78, confusion: 0.14, focal_weakness: 0.04, fever: 0.04}
+  temperature: {mean: 38.2, sd: 0.8}
+  ph_arterial: {mean: 7.20, sd: 0.10}
+  lactate: {mean: 8.4, sd: 3.2}
+  ck: {mean: 2400.0, sd: 1600.0}
+  bicarbonate: {mean: 15.0, sd: 4.0}
+  glucose: {mean: 148.0, sd: 46.0}
+bacterial_meningitis:
+  presenting_complaint: {fever: 0.34, headache: 0.30, confusion: 0.22, seizure_event: 0.08, rash: 0.06}
+  temperature: {mean: 39.2, sd: 0.8}
+  csf_profile: {neutrophilic_low_glucose: 0.88, lymphocytic_normal_glucose: 0.06, elevated_protein_normal_cells: 0.04, normal: 0.02}
+  wbc: {mean: 19.5, sd: 6.0}
+  crp: {mean: 186.0, sd: 70.0}
+  procalcitonin: {mean: 8.6, sd: 5.0}
+  blood_culture: {gram_positive_cocci: 0.46, no_growth: 0.34, gram_negative_rods: 0.16, contaminant_skin_flora: 0.04}
+viral_meningitis:
+  presenting_complaint: {headache: 0.42, fever: 0.28, confusion: 0.14, nausea_vomiting: 0.10, rash: 0.06}
+  temperature: {mean: 38.3, sd: 0.7}
+  csf_profile: {lymphocytic_normal_glucose: 0.86, neutrophilic_low_glucose: 0.05, elevated_protein_normal_cells: 0.06, normal: 0.03}
+  wbc: {mean: 9.6, sd: 3.2}
+  crp: {mean: 28.0, sd: 18.0}
+  procalcitonin: {mean: 0.24, sd: 0.16}
+encephalitis:
+  presenting_complaint: {confusion: 0.44, fever: 0.22, seizure_event: 0.16, headache: 0.12, focal_weakness: 0.06}
+  temperature: {mean: 38.8, sd: 0.8}
+  csf_profile: {lymphocytic_with_rbc: 0.56, lymphocytic_normal_glucose: 0.28, elevated_protein_normal_cells: 0.10, normal: 0.06}
+  mri_brain_finding: {temporal_lobe_signal_change: 0.72, normal: 0.12, diffusion_restriction: 0.08, mass_lesion: 0.08}
+  cognitive_screen: {severe_impairment: 0.40, moderate_impairment: 0.36, mild_impairment: 0.18, normal: 0.06}
+alzheimer_dementia:
+  presenting_complaint: {confusion: 0.52, routine_review: 0.18, mood_disturbance: 0.12, fatigue: 0.08, trauma_fall: 0.10}
+  cognitive_screen: {moderate_impairment: 0.44, severe_impairment: 0.26, mild_impairment: 0.26, normal: 0.04}
+  mri_brain_finding: {mesial_temporal_atrophy: 0.68, normal: 0.10, microhemorrhages: 0.12, periventricular_demyelinating_lesions: 0.10}
+  ct_head_finding: {atrophy: 0.66, small_vessel_disease: 0.22, normal: 0.10, mass_effect_lesion: 0.02}
+  vitamin_b12: {mean: 380.0, sd: 140.0}
+  tsh: {mean: 2.4, sd: 1.2}
+parkinson_disease:
+  presenting_complaint: {trauma_fall: 0.26, numbness_tingling: 0.14, fatigue: 0.18, confusion: 0.16, routine_review: 0.16, mood_disturbance: 0.10}
+  cognitive_screen: {normal: 0.44, mild_impairment: 0.34, moderate_impairment: 0.18, severe_impairment: 0.04}
+  mri_brain_finding: {normal: 0.72, mesial_temporal_atrophy: 0.14, microhemorrhages: 0.08, periventricular_demyelinating_lesions: 0.06}
+  systolic_bp: {mean: 112.0, sd: 16.0}
+multiple_sclerosis:
+  presenting_complaint: {numbness_tingling: 0.30, vision_change: 0.26, focal_weakness: 0.22, fatigue: 0.14, dizziness: 0.08}
+  mri_brain_finding: {periventricular_demyelinating_lesions: 0.88, normal: 0.04, diffusion_restriction: 0.04, mass_lesion: 0.04}
+  csf_profile: {elevated_protein_normal_cells: 0.58, lymphocytic_normal_glucose: 0.24, normal: 0.16, lymphocytic_with_rbc: 0.02}
+  vitamin_d_25oh: {mean: 21.0, sd: 8.0}
+peripheral_neuropathy:
+  presenting_complaint: {numbness_tingling: 0.66, lumbar_pain: 0.10, focal_weakness: 0.10, trauma_fall: 0.08, fatigue: 0.06}
+  vitamin_b12: {mean: 190.0, sd: 90.0}
+  hba1c: {mean: 7.4, sd: 1.6}
+  glucose: {mean: 148.0, sd: 46.0}
+  tsh: {mean: 3.6, sd: 2.4}
+bell_palsy:
+  presenting_complaint: {focal_weakness: 0.58, headache: 0.12, numbness_tingling: 0.16, vision_change: 0.10, sore_throat: 0.04}
+  ct_head_finding: {normal: 0.92, small_vessel_disease: 0.04, atrophy: 0.04}
+  mri_brain_finding: {normal: 0.86, periventricular_demyelinating_lesions: 0.06, diffusion_restriction: 0.04, microhemorrhages: 0.04}
+  lyme_serology: {negative: 0.82, positive: 0.18}
+concussion:
+  presenting_complaint: {trauma_fall: 0.42, headache: 0.26, confusion: 0.16, dizziness: 0.12, nausea_vomiting: 0.04}
+  ct_head_finding: {normal: 0.80, skull_fracture: 0.08, hyperdense_intraparenchymal_blood: 0.06, subarachnoid_blood: 0.04, small_vessel_disease: 0.02}
+  cognitive_screen: {mild_impairment: 0.48, normal: 0.34, moderate_impairment: 0.16, severe_impairment: 0.02}
+  pain_score: {mean: 5.2, sd: 2.0}
+benign_positional_vertigo:
+  presenting_complaint: {dizziness: 0.78, nausea_vomiting: 0.10, trauma_fall: 0.06, vision_change: 0.06}
+  ct_head_finding: {normal: 0.92, small_vessel_disease: 0.05, atrophy: 0.03}
+  mri_brain_finding: {normal: 0.92, microhemorrhages: 0.04, diffusion_restriction: 0.04}
+  cognitive_screen: {normal: 0.88, mild_impairment: 0.10, moderate_impairment: 0.02}
+guillain_barre_syndrome:
+  presenting_complaint: {focal_weakness: 0.48, numbness_tingling: 0.30, dyspnea: 0.12, lumbar_pain: 0.06, trauma_fall: 0.04}
+  csf_profile: {elevated_protein_normal_cells: 0.84, normal: 0.08, lymphocytic_normal_glucose: 0.06, neutrophilic_low_glucose: 0.02}
+  spirometry: {restrictive: 0.68, normal: 0.22, obstructive_fixed: 0.06, obstructive_reversible: 0.04}
+  mri_brain_finding: {normal: 0.88, periventricular_demyelinating_lesions: 0.06, diffusion_restriction: 0.06}
+
+# ------------------------------------------------------------------- hematologic ----
+iron_deficiency_anemia:
+  presenting_complaint: {fatigue: 0.44, dyspnea: 0.16, dizziness: 0.14, bleeding: 0.14, routine_review: 0.12}
+  hemoglobin: {mean: 9.2, sd: 1.5}
+  mcv: {mean: 71.0, sd: 6.0}
+  ferritin: {mean: 8.0, sd: 5.0}
+  iron_saturation: {mean: 7.0, sd: 4.0}
+  peripheral_smear: {microcytic_hypochromic: 0.86, normal: 0.08, macrocytic_hypersegmented: 0.02, rouleaux: 0.02, schistocytes: 0.02}
+  reticulocyte_pct: {mean: 0.7, sd: 0.3}
+  platelets: {mean: 420.0, sd: 90.0}
+b12_deficiency_anemia:
+  presenting_complaint: {fatigue: 0.36, numbness_tingling: 0.26, confusion: 0.14, dizziness: 0.12, routine_review: 0.12}
+  hemoglobin: {mean: 9.8, sd: 1.6}
+  mcv: {mean: 112.0, sd: 8.0}
+  vitamin_b12: {mean: 105.0, sd: 45.0}
+  peripheral_smear: {macrocytic_hypersegmented: 0.84, normal: 0.10, microcytic_hypochromic: 0.02, schistocytes: 0.02, rouleaux: 0.02}
+  total_bilirubin: {mean: 1.5, sd: 0.6}
+anemia_of_chronic_disease:
+  presenting_complaint: {fatigue: 0.42, routine_review: 0.22, dyspnea: 0.14, joint_pain: 0.12, dizziness: 0.10}
+  hemoglobin: {mean: 10.4, sd: 1.2}
+  mcv: {mean: 86.0, sd: 5.0}
+  ferritin: {mean: 260.0, sd: 110.0}
+  iron_saturation: {mean: 13.0, sd: 5.0}
+  crp: {mean: 34.0, sd: 22.0}
+  esr: {mean: 48.0, sd: 22.0}
+sickle_cell_crisis:
+  presenting_complaint: {lumbar_pain: 0.32, abdominal_pain: 0.22, joint_pain: 0.22, chest_pain: 0.14, fever: 0.10}
+  pain_score: {mean: 8.8, sd: 1.3}
+  hemoglobin: {mean: 7.6, sd: 1.4}
+  reticulocyte_pct: {mean: 9.5, sd: 3.5}
+  peripheral_smear: {sickled_cells: 0.92, normal: 0.02, schistocytes: 0.03, microcytic_hypochromic: 0.03}
+  total_bilirubin: {mean: 3.4, sd: 1.5}
+  ldl: {mean: 84.0, sd: 22.0}
+immune_thrombocytopenia:
+  presenting_complaint: {bleeding: 0.56, rash: 0.24, fatigue: 0.12, routine_review: 0.08}
+  platelets: {mean: 22.0, sd: 15.0}
+  hemoglobin: {mean: 13.2, sd: 1.5}
+  peripheral_smear: {normal: 0.72, schistocytes: 0.08, microcytic_hypochromic: 0.10, macrocytic_hypersegmented: 0.05, rouleaux: 0.05}
+  inr: {mean: 1.05, sd: 0.1}
+  skin_exam_finding: {normal: 0.40, wheals_transient: 0.30, well_demarcated_erythema_warmth: 0.14, flexural_lichenified_eczema: 0.10, silvery_plaques_extensor: 0.06}
+acute_leukemia:
+  presenting_complaint: {fatigue: 0.30, fever: 0.22, bleeding: 0.20, weight_loss: 0.14, joint_pain: 0.14}
+  wbc: {mean: 62.0, sd: 40.0}
+  hemoglobin: {mean: 8.4, sd: 1.6}
+  platelets: {mean: 34.0, sd: 22.0}
+  peripheral_smear: {blasts_present: 0.90, normal: 0.02, macrocytic_hypersegmented: 0.03, schistocytes: 0.03, microcytic_hypochromic: 0.02}
+  uric_acid: {mean: 9.8, sd: 2.4}
+  lactate: {mean: 2.6, sd: 1.2}
+lymphoma:
+  presenting_complaint: {weight_loss: 0.28, fever: 0.22, fatigue: 0.20, leg_swelling: 0.10, dyspnea: 0.10, rash: 0.10}
+  esr: {mean: 74.0, sd: 28.0}
+  ct_chest_finding: {mediastinal_lymphadenopathy: 0.72, normal: 0.08, spiculated_nodule: 0.08, effusion: 0.08, consolidation: 0.04}
+  hemoglobin: {mean: 10.8, sd: 1.7}
+  calcium: {mean: 10.6, sd: 1.0}
+  peripheral_smear: {normal: 0.62, rouleaux: 0.14, blasts_present: 0.10, macrocytic_hypersegmented: 0.08, microcytic_hypochromic: 0.06}
+multiple_myeloma:
+  presenting_complaint: {lumbar_pain: 0.36, fatigue: 0.24, bleeding: 0.06, weight_loss: 0.14, confusion: 0.10, routine_review: 0.10}
+  spep: {monoclonal_spike: 0.90, polyclonal_increase: 0.06, normal: 0.04}
+  calcium: {mean: 12.2, sd: 1.2}
+  creatinine: {mean: 2.4, sd: 1.0}
+  hemoglobin: {mean: 9.4, sd: 1.5}
+  peripheral_smear: {rouleaux: 0.76, normal: 0.10, macrocytic_hypersegmented: 0.06, microcytic_hypochromic: 0.04, schistocytes: 0.04}
+  bone_density: {t_score_below_minus_2_5: 0.56, osteopenia: 0.30, normal: 0.14}
+  esr: {mean: 92.0, sd: 30.0}
+
+# -------------------------------------------------------------------- infectious ----
+sepsis:
+  presenting_complaint: {fever: 0.34, confusion: 0.20, dyspnea: 0.16, dysuria: 0.12, abdominal_pain: 0.10, fatigue: 0.08}
+  temperature: {mean: 38.9, sd: 1.2}
+  heart_rate: {mean: 118.0, sd: 18.0}
+  respiratory_rate: {mean: 26.0, sd: 5.0}
+  systolic_bp: {mean: 102.0, sd: 16.0}
+  wbc: {mean: 19.0, sd: 7.0}
+  lactate: {mean: 3.4, sd: 1.4}
+  procalcitonin: {mean: 12.0, sd: 8.0}
+  crp: {mean: 190.0, sd: 75.0}
+  blood_culture: {gram_negative_rods: 0.36, gram_positive_cocci: 0.34, no_growth: 0.24, contaminant_skin_flora: 0.06}
+  creatinine: {mean: 1.8, sd: 0.8}
+septic_shock:
+  presenting_complaint: {confusion: 0.32, fever: 0.26, dyspnea: 0.18, abdominal_pain: 0.12, dizziness: 0.12}
+  temperature: {mean: 38.9, sd: 1.4}
+  heart_rate: {mean: 132.0, sd: 20.0}
+  systolic_bp: {mean: 76.0, sd: 12.0}
+  lactate: {mean: 6.8, sd: 2.6}
+  procalcitonin: {mean: 32.0, sd: 18.0}
+  blood_culture: {gram_negative_rods: 0.40, gram_positive_cocci: 0.36, no_growth: 0.18, contaminant_skin_flora: 0.06}
+  creatinine: {mean: 2.6, sd: 1.1}
+  ph_arterial: {mean: 7.26, sd: 0.09}
+  bicarbonate: {mean: 16.0, sd: 4.0}
+cellulitis:
+  presenting_complaint: {rash: 0.56, fever: 0.16, joint_pain: 0.12, leg_swelling: 0.16}
+  skin_exam_finding: {well_demarcated_erythema_warmth: 0.88, normal: 0.03, crepitus_dusky_bullae: 0.03, target_lesion_expanding_erythema: 0.03, wheals_transient: 0.03}
+  temperature: {mean: 37.9, sd: 0.7}
+  wbc: {mean: 13.4, sd: 4.0}
+  crp: {mean: 76.0, sd: 40.0}
+  leg_doppler_finding: {normal: 0.84, superficial_thrombophlebitis: 0.08, noncompressible_vein_with_thrombus: 0.05, chronic_post_thrombotic_change: 0.03}
+osteomyelitis:
+  presenting_complaint: {lumbar_pain: 0.28, joint_pain: 0.34, fever: 0.20, rash: 0.10, focal_weakness: 0.08}
+  esr: {mean: 88.0, sd: 30.0}
+  crp: {mean: 96.0, sd: 46.0}
+  wbc: {mean: 13.0, sd: 4.5}
+  blood_culture: {gram_positive_cocci: 0.48, no_growth: 0.40, gram_negative_rods: 0.08, contaminant_skin_flora: 0.04}
+  hba1c: {mean: 8.2, sd: 1.8}
+  bone_density: {normal: 0.70, osteopenia: 0.22, t_score_below_minus_2_5: 0.08}
+necrotizing_fasciitis:
+  presenting_complaint: {rash: 0.36, joint_pain: 0.22, fever: 0.20, leg_swelling: 0.14, confusion: 0.08}
+  pain_score: {mean: 9.4, sd: 0.8}
+  skin_exam_finding: {crepitus_dusky_bullae: 0.82, well_demarcated_erythema_warmth: 0.12, normal: 0.02, target_lesion_expanding_erythema: 0.02, wheals_transient: 0.02}
+  wbc: {mean: 24.0, sd: 8.0}
+  lactate: {mean: 5.4, sd: 2.2}
+  crp: {mean: 240.0, sd: 80.0}
+  ck: {mean: 1200.0, sd: 800.0}
+  systolic_bp: {mean: 96.0, sd: 18.0}
+lyme_disease:
+  presenting_complaint: {rash: 0.42, joint_pain: 0.24, fever: 0.12, fatigue: 0.14, focal_weakness: 0.08}
+  lyme_serology: {positive: 0.86, negative: 0.14}
+  skin_exam_finding: {target_lesion_expanding_erythema: 0.72, normal: 0.14, well_demarcated_erythema_warmth: 0.08, wheals_transient: 0.04, silvery_plaques_extensor: 0.02}
+  esr: {mean: 34.0, sd: 18.0}
+  ecg_finding: {normal_sinus: 0.84, low_voltage: 0.06, sinus_tachycardia: 0.06, irregularly_irregular_no_p_waves: 0.04}
+hiv_infection:
+  presenting_complaint: {fever: 0.22, weight_loss: 0.22, fatigue: 0.20, diarrhea: 0.12, rash: 0.12, cough: 0.12}
+  hiv_ag_ab: {reactive: 0.96, nonreactive: 0.04}
+  lymphocyte_pct: {mean: 14.0, sd: 6.0}
+  wbc: {mean: 3.6, sd: 1.3}
+  hemoglobin: {mean: 11.4, sd: 1.7}
+  platelets: {mean: 158.0, sd: 55.0}
+  tb_igra: {negative: 0.80, positive: 0.12, indeterminate: 0.08}
+infectious_mononucleosis:
+  presenting_complaint: {sore_throat: 0.44, fatigue: 0.26, fever: 0.20, rash: 0.06, abdominal_pain: 0.04}
+  monospot: {positive: 0.84, negative: 0.16}
+  lymphocyte_pct: {mean: 58.0, sd: 10.0}
+  wbc: {mean: 13.6, sd: 4.0}
+  alt: {mean: 96.0, sd: 46.0}
+  rapid_strep: {negative: 0.88, positive: 0.12}
+  temperature: {mean: 38.2, sd: 0.7}
+
+# ----------------------------------------------------------------- rheumatologic ----
+rheumatoid_arthritis:
+  presenting_complaint: {joint_pain: 0.72, fatigue: 0.14, rash: 0.04, routine_review: 0.06, lumbar_pain: 0.04}
+  rf_anti_ccp: {anti_ccp_positive: 0.74, rf_only_positive: 0.16, negative: 0.10}
+  esr: {mean: 52.0, sd: 22.0}
+  crp: {mean: 42.0, sd: 24.0}
+  hemoglobin: {mean: 11.6, sd: 1.4}
+  ana: {negative: 0.62, low_titre_positive: 0.30, high_titre_positive: 0.08}
+  joint_aspirate: {inflammatory_no_crystals: 0.66, noninflammatory: 0.18, normal: 0.08, purulent_high_wbc: 0.04, negatively_birefringent_crystals: 0.04}
+systemic_lupus_erythematosus:
+  presenting_complaint: {joint_pain: 0.32, rash: 0.24, fatigue: 0.18, fever: 0.12, leg_swelling: 0.08, bleeding: 0.06}
+  ana: {high_titre_positive: 0.86, low_titre_positive: 0.10, negative: 0.04}
+  esr: {mean: 62.0, sd: 26.0}
+  crp: {mean: 14.0, sd: 10.0}
+  urine_protein: {mean: 145.0, sd: 110.0}
+  platelets: {mean: 132.0, sd: 50.0}
+  wbc: {mean: 3.4, sd: 1.4}
+  creatinine: {mean: 1.35, sd: 0.6}
+osteoarthritis:
+  presenting_complaint: {joint_pain: 0.62, lumbar_pain: 0.20, routine_review: 0.10, trauma_fall: 0.08}
+  pain_score: {mean: 5.4, sd: 1.9}
+  esr: {mean: 14.0, sd: 8.0}
+  crp: {mean: 4.4, sd: 2.6}
+  joint_aspirate: {noninflammatory: 0.72, normal: 0.18, inflammatory_no_crystals: 0.06, negatively_birefringent_crystals: 0.03, purulent_high_wbc: 0.01}
+  hip_xray_finding: {joint_space_narrowing_osteophytes: 0.74, normal: 0.14, osteopenia: 0.10, cortical_discontinuity_femoral_neck: 0.02}
+  bmi: {mean: 31.5, sd: 5.5}
+osteoporosis:
+  presenting_complaint: {lumbar_pain: 0.36, routine_review: 0.32, trauma_fall: 0.16, joint_pain: 0.16}
+  bone_density: {t_score_below_minus_2_5: 0.88, osteopenia: 0.10, normal: 0.02}
+  vitamin_d_25oh: {mean: 22.0, sd: 9.0}
+  calcium: {mean: 9.3, sd: 0.5}
+  bmi: {mean: 21.5, sd: 3.5}
+  pth: {mean: 58.0, sd: 22.0}
+fibromyalgia:
+  presenting_complaint: {joint_pain: 0.34, lumbar_pain: 0.24, fatigue: 0.24, mood_disturbance: 0.10, headache: 0.08}
+  pain_score: {mean: 6.6, sd: 1.8}
+  esr: {mean: 10.0, sd: 5.0}
+  crp: {mean: 2.4, sd: 1.5}
+  ana: {negative: 0.84, low_titre_positive: 0.14, high_titre_positive: 0.02}
+  depression_screen: {mixed_symptoms: 0.30, depressive_symptoms: 0.24, negative: 0.28, anxiety_symptoms: 0.18}
+polymyalgia_rheumatica:
+  presenting_complaint: {joint_pain: 0.48, lumbar_pain: 0.20, fatigue: 0.18, fever: 0.08, weight_loss: 0.06}
+  esr: {mean: 78.0, sd: 24.0}
+  crp: {mean: 62.0, sd: 28.0}
+  rf_anti_ccp: {negative: 0.88, rf_only_positive: 0.10, anti_ccp_positive: 0.02}
+  ck: {mean: 110.0, sd: 40.0}
+  hemoglobin: {mean: 11.8, sd: 1.4}
+giant_cell_arteritis:
+  presenting_complaint: {headache: 0.42, vision_change: 0.24, joint_pain: 0.14, fever: 0.10, weight_loss: 0.10}
+  esr: {mean: 96.0, sd: 26.0}
+  crp: {mean: 88.0, sd: 34.0}
+  platelets: {mean: 448.0, sd: 100.0}
+  hemoglobin: {mean: 11.4, sd: 1.4}
+  alk_phos: {mean: 152.0, sd: 55.0}
+septic_arthritis:
+  presenting_complaint: {joint_pain: 0.68, fever: 0.20, rash: 0.06, trauma_fall: 0.06}
+  pain_score: {mean: 8.6, sd: 1.4}
+  joint_aspirate: {purulent_high_wbc: 0.88, inflammatory_no_crystals: 0.06, negatively_birefringent_crystals: 0.03, noninflammatory: 0.02, normal: 0.01}
+  temperature: {mean: 38.6, sd: 0.8}
+  wbc: {mean: 16.4, sd: 5.0}
+  crp: {mean: 148.0, sd: 60.0}
+  blood_culture: {gram_positive_cocci: 0.52, no_growth: 0.36, gram_negative_rods: 0.08, contaminant_skin_flora: 0.04}
+
+# ------------------------------------------------------------------ dermatologic ----
+psoriasis:
+  presenting_complaint: {rash: 0.72, joint_pain: 0.16, routine_review: 0.08, fatigue: 0.04}
+  skin_exam_finding: {silvery_plaques_extensor: 0.88, normal: 0.03, flexural_lichenified_eczema: 0.04, well_demarcated_erythema_warmth: 0.03, target_lesion_expanding_erythema: 0.02}
+  crp: {mean: 8.6, sd: 5.0}
+  esr: {mean: 22.0, sd: 12.0}
+atopic_dermatitis:
+  presenting_complaint: {rash: 0.80, cough: 0.06, routine_review: 0.08, sore_throat: 0.06}
+  skin_exam_finding: {flexural_lichenified_eczema: 0.88, normal: 0.03, silvery_plaques_extensor: 0.04, wheals_transient: 0.03, well_demarcated_erythema_warmth: 0.02}
+  spirometry: {normal: 0.70, obstructive_reversible: 0.24, restrictive: 0.04, obstructive_fixed: 0.02}
+contact_dermatitis:
+  presenting_complaint: {rash: 0.86, routine_review: 0.08, exposure_or_ingestion: 0.06}
+  skin_exam_finding: {well_demarcated_erythema_warmth: 0.56, flexural_lichenified_eczema: 0.20, wheals_transient: 0.12, normal: 0.08, silvery_plaques_extensor: 0.04}
+  temperature: {mean: 36.8, sd: 0.3}
+  wbc: {mean: 7.8, sd: 2.2}
+urticaria:
+  presenting_complaint: {rash: 0.74, exposure_or_ingestion: 0.12, sore_throat: 0.06, dyspnea: 0.08}
+  skin_exam_finding: {wheals_transient: 0.86, normal: 0.06, well_demarcated_erythema_warmth: 0.04, flexural_lichenified_eczema: 0.04}
+  wbc: {mean: 8.4, sd: 2.4}
+anaphylaxis:
+  presenting_complaint: {dyspnea: 0.36, rash: 0.28, exposure_or_ingestion: 0.16, dizziness: 0.12, nausea_vomiting: 0.08}
+  systolic_bp: {mean: 82.0, sd: 16.0}
+  heart_rate: {mean: 128.0, sd: 20.0}
+  spo2: {mean: 90.0, sd: 5.0}
+  skin_exam_finding: {wheals_transient: 0.74, well_demarcated_erythema_warmth: 0.12, normal: 0.10, flexural_lichenified_eczema: 0.04}
+  spirometry: {obstructive_reversible: 0.56, normal: 0.28, restrictive: 0.10, obstructive_fixed: 0.06}
+
+# --------------------------------------------------------------- musculoskeletal ----
+hip_fracture:
+  presenting_complaint: {trauma_fall: 0.56, joint_pain: 0.24, lumbar_pain: 0.14, confusion: 0.06}
+  pain_score: {mean: 8.4, sd: 1.5}
+  hip_xray_finding: {cortical_discontinuity_femoral_neck: 0.92, joint_space_narrowing_osteophytes: 0.04, osteopenia: 0.03, normal: 0.01}
+  bone_density: {t_score_below_minus_2_5: 0.56, osteopenia: 0.34, normal: 0.10}
+  hemoglobin: {mean: 11.6, sd: 1.7}
+  vitamin_d_25oh: {mean: 21.0, sd: 9.0}
+mechanical_low_back_pain:
+  presenting_complaint: {lumbar_pain: 0.84, joint_pain: 0.08, numbness_tingling: 0.04, trauma_fall: 0.04}
+  pain_score: {mean: 6.0, sd: 1.9}
+  esr: {mean: 11.0, sd: 6.0}
+  crp: {mean: 3.2, sd: 2.0}
+  hip_xray_finding: {normal: 0.66, joint_space_narrowing_osteophytes: 0.24, osteopenia: 0.09, cortical_discontinuity_femoral_neck: 0.01}
+rhabdomyolysis:
+  presenting_complaint: {lumbar_pain: 0.24, joint_pain: 0.26, focal_weakness: 0.18, trauma_fall: 0.16, confusion: 0.10, exposure_or_ingestion: 0.06}
+  ck: {mean: 32000.0, sd: 18000.0}
+  creatinine: {mean: 2.6, sd: 1.1}
+  potassium: {mean: 5.8, sd: 0.8}
+  phosphate: {mean: 6.2, sd: 1.4}
+  calcium: {mean: 7.6, sd: 0.8}
+  urine_rbc: {mean: 6.0, sd: 5.0}
+  ast: {mean: 380.0, sd: 200.0}
+
+# ------------------------------------------------------------------- psychiatric ----
+major_depressive_disorder:
+  presenting_complaint: {mood_disturbance: 0.44, fatigue: 0.26, weight_loss: 0.10, lumbar_pain: 0.08, headache: 0.06, routine_review: 0.06}
+  depression_screen: {depressive_symptoms: 0.72, mixed_symptoms: 0.18, negative: 0.06, anxiety_symptoms: 0.04}
+  tsh: {mean: 2.6, sd: 1.4}
+  vitamin_b12: {mean: 420.0, sd: 150.0}
+  cognitive_screen: {normal: 0.66, mild_impairment: 0.28, moderate_impairment: 0.06}
+generalized_anxiety_disorder:
+  presenting_complaint: {mood_disturbance: 0.34, palpitations: 0.20, chest_pain: 0.14, dyspnea: 0.12, fatigue: 0.12, dizziness: 0.08}
+  depression_screen: {anxiety_symptoms: 0.70, mixed_symptoms: 0.20, negative: 0.06, depressive_symptoms: 0.04}
+  heart_rate: {mean: 92.0, sd: 13.0}
+  tsh: {mean: 1.9, sd: 1.0}
+  troponin: {mean: 6.2, sd: 2.8}
+bipolar_disorder:
+  presenting_complaint: {mood_disturbance: 0.62, confusion: 0.12, fatigue: 0.10, routine_review: 0.08, exposure_or_ingestion: 0.08}
+  depression_screen: {manic_features: 0.52, mixed_symptoms: 0.24, depressive_symptoms: 0.18, psychotic_features: 0.06}
+  toxicology_screen: {negative: 0.70, stimulants_positive: 0.14, multiple_positive: 0.10, opioids_positive: 0.06}
+  tsh: {mean: 3.2, sd: 2.4}
+schizophrenia:
+  presenting_complaint: {mood_disturbance: 0.46, confusion: 0.28, routine_review: 0.10, fatigue: 0.10, exposure_or_ingestion: 0.06}
+  depression_screen: {psychotic_features: 0.74, mixed_symptoms: 0.12, depressive_symptoms: 0.10, manic_features: 0.04}
+  cognitive_screen: {mild_impairment: 0.42, normal: 0.32, moderate_impairment: 0.22, severe_impairment: 0.04}
+  toxicology_screen: {negative: 0.68, stimulants_positive: 0.16, multiple_positive: 0.10, opioids_positive: 0.06}
+alcohol_use_disorder:
+  presenting_complaint: {exposure_or_ingestion: 0.20, confusion: 0.18, nausea_vomiting: 0.16, trauma_fall: 0.16, fatigue: 0.16, mood_disturbance: 0.14}
+  mcv: {mean: 102.0, sd: 5.0}
+  ast: {mean: 96.0, sd: 44.0}
+  alt: {mean: 48.0, sd: 20.0}
+  platelets: {mean: 148.0, sd: 55.0}
+  magnesium: {mean: 1.5, sd: 0.3}
+  depression_screen: {depressive_symptoms: 0.38, mixed_symptoms: 0.24, negative: 0.24, anxiety_symptoms: 0.14}
+opioid_use_disorder:
+  presenting_complaint: {exposure_or_ingestion: 0.26, lumbar_pain: 0.20, mood_disturbance: 0.16, fatigue: 0.14, nausea_vomiting: 0.14, confusion: 0.10}
+  toxicology_screen: {opioids_positive: 0.62, multiple_positive: 0.24, negative: 0.10, stimulants_positive: 0.04}
+  hiv_ag_ab: {nonreactive: 0.94, reactive: 0.06}
+  hepatitis_serology: {hcv_antibody_positive: 0.34, nonreactive: 0.52, immune_vaccinated: 0.10, hbsag_positive: 0.04}
+opioid_overdose:
+  presenting_complaint: {confusion: 0.42, exposure_or_ingestion: 0.30, dyspnea: 0.16, syncope: 0.12}
+  respiratory_rate: {mean: 7.0, sd: 2.5}
+  spo2: {mean: 84.0, sd: 7.0}
+  toxicology_screen: {opioids_positive: 0.66, multiple_positive: 0.28, negative: 0.04, stimulants_positive: 0.02}
+  pco2: {mean: 62.0, sd: 12.0}
+  ph_arterial: {mean: 7.24, sd: 0.08}
+  ck: {mean: 900.0, sd: 700.0}
+attention_deficit_disorder:
+  presenting_complaint: {mood_disturbance: 0.34, routine_review: 0.34, fatigue: 0.18, headache: 0.08, confusion: 0.06}
+  cognitive_screen: {normal: 0.72, mild_impairment: 0.24, moderate_impairment: 0.04}
+  depression_screen: {negative: 0.46, anxiety_symptoms: 0.26, mixed_symptoms: 0.16, depressive_symptoms: 0.12}
+  tsh: {mean: 2.1, sd: 1.0}
+
+# --------------------------------------------------------------------- obstetric ----
+preeclampsia:
+  presenting_complaint: {headache: 0.28, leg_swelling: 0.26, vision_change: 0.16, abdominal_pain: 0.14, routine_review: 0.16}
+  systolic_bp: {mean: 164.0, sd: 16.0}
+  diastolic_bp: {mean: 104.0, sd: 9.0}
+  urine_protein: {mean: 280.0, sd: 150.0}
+  platelets: {mean: 118.0, sd: 48.0}
+  alt: {mean: 92.0, sd: 55.0}
+  hcg_quant: {mean: 42000.0, sd: 22000.0}
+  uric_acid: {mean: 7.4, sd: 1.4}
+  pelvic_us_finding: {intrauterine_pregnancy: 0.94, adnexal_mass: 0.02, nonpregnant_normal: 0.02, empty_uterus_free_fluid: 0.02}
+ectopic_pregnancy:
+  presenting_complaint: {abdominal_pain: 0.56, bleeding: 0.26, dizziness: 0.10, syncope: 0.08}
+  pain_score: {mean: 7.6, sd: 1.8}
+  hcg_quant: {mean: 3200.0, sd: 2200.0}
+  pelvic_us_finding: {empty_uterus_free_fluid: 0.72, adnexal_mass: 0.20, intrauterine_pregnancy: 0.04, nonpregnant_normal: 0.04}
+  hemoglobin: {mean: 10.8, sd: 1.9}
+  systolic_bp: {mean: 104.0, sd: 18.0}
+normal_pregnancy:
+  presenting_complaint: {routine_review: 0.56, nausea_vomiting: 0.20, fatigue: 0.12, abdominal_pain: 0.08, lumbar_pain: 0.04}
+  hcg_quant: {mean: 52000.0, sd: 26000.0}
+  pelvic_us_finding: {intrauterine_pregnancy: 0.94, nonpregnant_normal: 0.02, adnexal_mass: 0.02, empty_uterus_free_fluid: 0.02}
+  hemoglobin: {mean: 11.6, sd: 1.1}
+  systolic_bp: {mean: 110.0, sd: 10.0}
+hyperemesis_gravidarum:
+  presenting_complaint: {nausea_vomiting: 0.74, abdominal_pain: 0.10, dizziness: 0.08, fatigue: 0.08}
+  hcg_quant: {mean: 96000.0, sd: 38000.0}
+  pelvic_us_finding: {intrauterine_pregnancy: 0.94, adnexal_mass: 0.02, nonpregnant_normal: 0.02, empty_uterus_free_fluid: 0.02}
+  potassium: {mean: 3.1, sd: 0.4}
+  bicarbonate: {mean: 32.0, sd: 3.5}
+  bun: {mean: 26.0, sd: 8.0}
+  beta_hydroxybutyrate: {mean: 1.4, sd: 0.8}
+
+# ----------------------------------------------------------------- environmental ----
+heat_stroke:
+  presenting_complaint: {confusion: 0.44, exposure_or_ingestion: 0.20, dizziness: 0.14, nausea_vomiting: 0.12, syncope: 0.10}
+  temperature: {mean: 41.2, sd: 0.8}
+  heart_rate: {mean: 138.0, sd: 18.0}
+  ck: {mean: 4200.0, sd: 2800.0}
+  creatinine: {mean: 2.2, sd: 0.9}
+  ast: {mean: 260.0, sd: 140.0}
+  lactate: {mean: 4.6, sd: 2.0}
+carbon_monoxide_poisoning:
+  presenting_complaint: {headache: 0.34, confusion: 0.24, nausea_vomiting: 0.16, exposure_or_ingestion: 0.16, dizziness: 0.10}
+  carboxyhemoglobin: {mean: 26.0, sd: 9.0}
+  spo2: {mean: 97.0, sd: 1.5}
+  lactate: {mean: 3.6, sd: 1.6}
+  troponin: {mean: 46.0, sd: 34.0}
+  ct_head_finding: {normal: 0.82, hypodensity_vascular_territory: 0.08, small_vessel_disease: 0.06, mass_effect_lesion: 0.04}
+acetaminophen_toxicity:
+  presenting_complaint: {exposure_or_ingestion: 0.44, nausea_vomiting: 0.28, abdominal_pain: 0.16, confusion: 0.12}
+  acetaminophen_level: {toxic_range: 0.86, therapeutic: 0.10, undetectable: 0.04}
+  alt: {mean: 2400.0, sd: 1800.0}
+  ast: {mean: 2600.0, sd: 1900.0}
+  inr: {mean: 2.4, sd: 1.0}
+  total_bilirubin: {mean: 4.2, sd: 2.2}
+  ph_arterial: {mean: 7.32, sd: 0.08}
+  lactate: {mean: 3.8, sd: 1.8}

@@ -1,0 +1,288 @@
+# Global catalog: analytes (what a result IS) and orderable tests (what an agent ASKS FOR).
+#
+# The split matters. An orderable test is a purchasing decision; an analyte is a random
+# variable. Panels share analytes with singleton orders, so ordering CMP after BMP must
+# not re-charge for or re-sample sodium -- see episode dedup and I4.
+#
+# Every analyte here gets a distribution for EVERY condition in the taxonomy (I4). The
+# cross product is materialised at build time in obs_model.py; there are no runtime
+# fallbacks and no "unavailable" result.
+#
+# `healthy` is the reference distribution used for conditions with no specific override.
+# It is NOT a default-on-lookup-miss -- see obs_model.build_observation_model.
+
+analytes:
+  # --- hematology -------------------------------------------------------------------
+  - {key: hemoglobin, display: "Hemoglobin", kind: quantitative, unit: "g/dL", ref_low: 12.0, ref_high: 17.0, bounds: [2.0, 24.0], healthy: {mean: 14.2, sd: 1.2}}
+  - {key: mcv, display: "Mean corpuscular volume", kind: quantitative, unit: "fL", ref_low: 80.0, ref_high: 100.0, bounds: [50.0, 140.0], healthy: {mean: 89.0, sd: 4.5}}
+  - {key: wbc, display: "White blood cell count", kind: quantitative, unit: "10^9/L", ref_low: 4.0, ref_high: 11.0, bounds: [0.1, 200.0], healthy: {mean: 7.0, sd: 1.8}}
+  - {key: neutrophil_pct, display: "Neutrophil percentage", kind: quantitative, unit: "%", ref_low: 40.0, ref_high: 75.0, bounds: [0.0, 100.0], healthy: {mean: 58.0, sd: 8.0}}
+  - {key: lymphocyte_pct, display: "Lymphocyte percentage", kind: quantitative, unit: "%", ref_low: 20.0, ref_high: 45.0, bounds: [0.0, 100.0], healthy: {mean: 31.0, sd: 7.0}}
+  - {key: platelets, display: "Platelet count", kind: quantitative, unit: "10^9/L", ref_low: 150.0, ref_high: 400.0, bounds: [1.0, 1200.0], healthy: {mean: 255.0, sd: 55.0}}
+  - {key: reticulocyte_pct, display: "Reticulocyte percentage", kind: quantitative, unit: "%", ref_low: 0.5, ref_high: 2.5, bounds: [0.0, 40.0], healthy: {mean: 1.3, sd: 0.5}}
+  - {key: inr, display: "International normalised ratio", kind: quantitative, unit: "ratio", ref_low: 0.8, ref_high: 1.2, bounds: [0.5, 12.0], healthy: {mean: 1.0, sd: 0.08}}
+  - {key: ptt, display: "Partial thromboplastin time", kind: quantitative, unit: "s", ref_low: 25.0, ref_high: 35.0, bounds: [10.0, 200.0], healthy: {mean: 29.5, sd: 2.6}}
+  - {key: d_dimer, display: "D-dimer", kind: quantitative, unit: "ng/mL FEU", ref_low: 0.0, ref_high: 500.0, bounds: [10.0, 20000.0], healthy: {mean: 230.0, sd: 110.0}}
+  # --- chemistry --------------------------------------------------------------------
+  - {key: sodium, display: "Sodium", kind: quantitative, unit: "mmol/L", ref_low: 135.0, ref_high: 145.0, bounds: [100.0, 185.0], healthy: {mean: 140.0, sd: 2.2}}
+  - {key: potassium, display: "Potassium", kind: quantitative, unit: "mmol/L", ref_low: 3.5, ref_high: 5.1, bounds: [1.5, 9.5], healthy: {mean: 4.2, sd: 0.35}}
+  - {key: chloride, display: "Chloride", kind: quantitative, unit: "mmol/L", ref_low: 98.0, ref_high: 107.0, bounds: [65.0, 140.0], healthy: {mean: 102.5, sd: 2.4}}
+  - {key: bicarbonate, display: "Bicarbonate", kind: quantitative, unit: "mmol/L", ref_low: 22.0, ref_high: 29.0, bounds: [3.0, 50.0], healthy: {mean: 25.0, sd: 2.0}}
+  - {key: anion_gap, display: "Anion gap", kind: quantitative, unit: "mmol/L", ref_low: 4.0, ref_high: 12.0, bounds: [-5.0, 45.0], healthy: {mean: 8.5, sd: 2.0}}
+  - {key: bun, display: "Blood urea nitrogen", kind: quantitative, unit: "mg/dL", ref_low: 7.0, ref_high: 20.0, bounds: [1.0, 200.0], healthy: {mean: 13.5, sd: 3.5}}
+  - {key: creatinine, display: "Creatinine", kind: quantitative, unit: "mg/dL", ref_low: 0.6, ref_high: 1.3, bounds: [0.1, 20.0], healthy: {mean: 0.92, sd: 0.18}}
+  - {key: egfr, display: "Estimated GFR", kind: quantitative, unit: "mL/min/1.73m2", ref_low: 60.0, ref_high: 130.0, bounds: [2.0, 160.0], healthy: {mean: 96.0, sd: 12.0}}
+  - {key: glucose, display: "Glucose", kind: quantitative, unit: "mg/dL", ref_low: 70.0, ref_high: 99.0, bounds: [10.0, 1400.0], healthy: {mean: 89.0, sd: 9.0}}
+  - {key: calcium, display: "Calcium", kind: quantitative, unit: "mg/dL", ref_low: 8.6, ref_high: 10.3, bounds: [4.0, 20.0], healthy: {mean: 9.4, sd: 0.4}}
+  - {key: magnesium, display: "Magnesium", kind: quantitative, unit: "mg/dL", ref_low: 1.7, ref_high: 2.4, bounds: [0.4, 8.0], healthy: {mean: 2.05, sd: 0.18}}
+  - {key: phosphate, display: "Phosphate", kind: quantitative, unit: "mg/dL", ref_low: 2.5, ref_high: 4.5, bounds: [0.3, 15.0], healthy: {mean: 3.4, sd: 0.5}}
+  - {key: albumin, display: "Albumin", kind: quantitative, unit: "g/dL", ref_low: 3.5, ref_high: 5.0, bounds: [0.5, 7.0], healthy: {mean: 4.3, sd: 0.32}}
+  - {key: osmolality, display: "Serum osmolality", kind: quantitative, unit: "mOsm/kg", ref_low: 275.0, ref_high: 295.0, bounds: [200.0, 420.0], healthy: {mean: 285.0, sd: 5.0}}
+  - {key: uric_acid, display: "Uric acid", kind: quantitative, unit: "mg/dL", ref_low: 3.0, ref_high: 7.0, bounds: [0.5, 20.0], healthy: {mean: 5.0, sd: 1.1}}
+  # --- hepatic / pancreatic ---------------------------------------------------------
+  - {key: ast, display: "Aspartate aminotransferase", kind: quantitative, unit: "U/L", ref_low: 10.0, ref_high: 40.0, bounds: [3.0, 12000.0], healthy: {mean: 23.0, sd: 7.0}}
+  - {key: alt, display: "Alanine aminotransferase", kind: quantitative, unit: "U/L", ref_low: 7.0, ref_high: 45.0, bounds: [3.0, 12000.0], healthy: {mean: 24.0, sd: 8.0}}
+  - {key: alk_phos, display: "Alkaline phosphatase", kind: quantitative, unit: "U/L", ref_low: 40.0, ref_high: 130.0, bounds: [10.0, 3000.0], healthy: {mean: 78.0, sd: 20.0}}
+  - {key: total_bilirubin, display: "Total bilirubin", kind: quantitative, unit: "mg/dL", ref_low: 0.2, ref_high: 1.2, bounds: [0.05, 45.0], healthy: {mean: 0.65, sd: 0.22}}
+  - {key: lipase, display: "Lipase", kind: quantitative, unit: "U/L", ref_low: 10.0, ref_high: 60.0, bounds: [3.0, 8000.0], healthy: {mean: 30.0, sd: 11.0}}
+  - {key: ammonia, display: "Ammonia", kind: quantitative, unit: "umol/L", ref_low: 15.0, ref_high: 45.0, bounds: [3.0, 500.0], healthy: {mean: 27.0, sd: 7.0}}
+  # --- cardiac / inflammatory -------------------------------------------------------
+  - {key: troponin, display: "High-sensitivity troponin T", kind: quantitative, unit: "ng/L", ref_low: 0.0, ref_high: 14.0, bounds: [1.0, 30000.0], healthy: {mean: 6.0, sd: 3.0}}
+  - {key: bnp, display: "B-type natriuretic peptide", kind: quantitative, unit: "pg/mL", ref_low: 0.0, ref_high: 100.0, bounds: [2.0, 12000.0], healthy: {mean: 38.0, sd: 22.0}}
+  - {key: ck, display: "Creatine kinase", kind: quantitative, unit: "U/L", ref_low: 30.0, ref_high: 200.0, bounds: [10.0, 300000.0], healthy: {mean: 105.0, sd: 40.0}}
+  - {key: crp, display: "C-reactive protein", kind: quantitative, unit: "mg/L", ref_low: 0.0, ref_high: 5.0, bounds: [0.1, 600.0], healthy: {mean: 2.1, sd: 1.4}}
+  - {key: esr, display: "Erythrocyte sedimentation rate", kind: quantitative, unit: "mm/h", ref_low: 0.0, ref_high: 20.0, bounds: [0.0, 150.0], healthy: {mean: 9.0, sd: 5.0}}
+  - {key: procalcitonin, display: "Procalcitonin", kind: quantitative, unit: "ng/mL", ref_low: 0.0, ref_high: 0.5, bounds: [0.01, 200.0], healthy: {mean: 0.08, sd: 0.05}}
+  - {key: lactate, display: "Lactate", kind: quantitative, unit: "mmol/L", ref_low: 0.5, ref_high: 2.0, bounds: [0.2, 30.0], healthy: {mean: 1.15, sd: 0.35}}
+  # --- endocrine / metabolic --------------------------------------------------------
+  - {key: tsh, display: "Thyroid stimulating hormone", kind: quantitative, unit: "mIU/L", ref_low: 0.4, ref_high: 4.5, bounds: [0.005, 200.0], healthy: {mean: 2.0, sd: 0.9}}
+  - {key: free_t4, display: "Free thyroxine", kind: quantitative, unit: "ng/dL", ref_low: 0.8, ref_high: 1.8, bounds: [0.05, 8.0], healthy: {mean: 1.25, sd: 0.2}}
+  - {key: hba1c, display: "Glycated hemoglobin", kind: quantitative, unit: "%", ref_low: 4.0, ref_high: 5.6, bounds: [3.0, 20.0], healthy: {mean: 5.2, sd: 0.3}}
+  - {key: ldl, display: "LDL cholesterol", kind: quantitative, unit: "mg/dL", ref_low: 0.0, ref_high: 130.0, bounds: [15.0, 500.0], healthy: {mean: 105.0, sd: 24.0}}
+  - {key: hdl, display: "HDL cholesterol", kind: quantitative, unit: "mg/dL", ref_low: 40.0, ref_high: 90.0, bounds: [10.0, 150.0], healthy: {mean: 55.0, sd: 12.0}}
+  - {key: triglycerides, display: "Triglycerides", kind: quantitative, unit: "mg/dL", ref_low: 0.0, ref_high: 150.0, bounds: [20.0, 4000.0], healthy: {mean: 110.0, sd: 40.0}}
+  - {key: cortisol_am, display: "Morning cortisol", kind: quantitative, unit: "ug/dL", ref_low: 6.0, ref_high: 20.0, bounds: [0.2, 90.0], healthy: {mean: 12.5, sd: 3.2}}
+  - {key: pth, display: "Parathyroid hormone", kind: quantitative, unit: "pg/mL", ref_low: 15.0, ref_high: 65.0, bounds: [2.0, 2000.0], healthy: {mean: 36.0, sd: 11.0}}
+  - {key: ferritin, display: "Ferritin", kind: quantitative, unit: "ng/mL", ref_low: 30.0, ref_high: 300.0, bounds: [1.0, 5000.0], healthy: {mean: 120.0, sd: 55.0}}
+  - {key: iron_saturation, display: "Transferrin saturation", kind: quantitative, unit: "%", ref_low: 20.0, ref_high: 50.0, bounds: [1.0, 100.0], healthy: {mean: 31.0, sd: 8.0}}
+  - {key: vitamin_b12, display: "Vitamin B12", kind: quantitative, unit: "pg/mL", ref_low: 200.0, ref_high: 900.0, bounds: [40.0, 3000.0], healthy: {mean: 480.0, sd: 130.0}}
+  - {key: vitamin_d_25oh, display: "25-hydroxyvitamin D", kind: quantitative, unit: "ng/mL", ref_low: 30.0, ref_high: 80.0, bounds: [2.0, 150.0], healthy: {mean: 38.0, sd: 10.0}}
+  - {key: beta_hydroxybutyrate, display: "Beta-hydroxybutyrate", kind: quantitative, unit: "mmol/L", ref_low: 0.0, ref_high: 0.6, bounds: [0.0, 25.0], healthy: {mean: 0.15, sd: 0.1}}
+  - {key: hcg_quant, display: "Quantitative beta-hCG", kind: quantitative, unit: "mIU/mL", ref_low: 0.0, ref_high: 5.0, bounds: [0.0, 300000.0], healthy: {mean: 1.2, sd: 1.0}}
+  # --- blood gas --------------------------------------------------------------------
+  - {key: ph_arterial, display: "Arterial pH", kind: quantitative, unit: "pH", ref_low: 7.35, ref_high: 7.45, bounds: [6.6, 7.9], healthy: {mean: 7.40, sd: 0.025}}
+  - {key: pco2, display: "Arterial pCO2", kind: quantitative, unit: "mmHg", ref_low: 35.0, ref_high: 45.0, bounds: [10.0, 130.0], healthy: {mean: 40.0, sd: 3.0}}
+  - {key: po2, display: "Arterial pO2", kind: quantitative, unit: "mmHg", ref_low: 80.0, ref_high: 100.0, bounds: [20.0, 600.0], healthy: {mean: 92.0, sd: 7.0}}
+  - {key: carboxyhemoglobin, display: "Carboxyhemoglobin", kind: quantitative, unit: "%", ref_low: 0.0, ref_high: 2.0, bounds: [0.0, 80.0], healthy: {mean: 0.9, sd: 0.5}}
+  # --- urine ------------------------------------------------------------------------
+  - {key: urine_protein, display: "Urine protein", kind: quantitative, unit: "mg/dL", ref_low: 0.0, ref_high: 15.0, bounds: [0.0, 2000.0], healthy: {mean: 5.0, sd: 3.5}}
+  - {key: urine_wbc, display: "Urine white cells", kind: quantitative, unit: "cells/hpf", ref_low: 0.0, ref_high: 5.0, bounds: [0.0, 500.0], healthy: {mean: 1.4, sd: 1.2}}
+  - {key: urine_rbc, display: "Urine red cells", kind: quantitative, unit: "cells/hpf", ref_low: 0.0, ref_high: 3.0, bounds: [0.0, 500.0], healthy: {mean: 0.8, sd: 0.9}}
+  # --- categorical: imaging, tracings, micro, serology ------------------------------
+  - {key: ecg_finding, display: "ECG interpretation", kind: categorical, values: [normal_sinus, sinus_tachycardia, st_elevation, st_depression, t_wave_inversion, irregularly_irregular_no_p_waves, diffuse_st_elevation_pr_depression, low_voltage, left_ventricular_hypertrophy, peaked_t_waves, right_heart_strain], healthy: {normal_sinus: 0.86, sinus_tachycardia: 0.06, t_wave_inversion: 0.03, left_ventricular_hypertrophy: 0.03, st_depression: 0.02}}
+  - {key: chest_xray_finding, display: "Chest radiograph", kind: categorical, values: [normal, lobar_consolidation, diffuse_interstitial_infiltrate, pulmonary_edema, blunted_costophrenic_angle, absent_lung_markings_pleural_line, hyperinflation, mass_lesion, cavitary_lesion, cardiomegaly, reticular_fibrosis], healthy: {normal: 0.88, hyperinflation: 0.04, cardiomegaly: 0.04, blunted_costophrenic_angle: 0.02, diffuse_interstitial_infiltrate: 0.02}}
+  - {key: ct_chest_finding, display: "CT chest", kind: categorical, values: [normal, filling_defect_pulmonary_artery, consolidation, ground_glass, spiculated_nodule, honeycombing, mediastinal_lymphadenopathy, aortic_intimal_flap, pleural_air_collection, effusion], healthy: {normal: 0.86, ground_glass: 0.05, consolidation: 0.03, effusion: 0.03, mediastinal_lymphadenopathy: 0.03}}
+  - {key: ct_head_finding, display: "CT head", kind: categorical, values: [normal, hypodensity_vascular_territory, hyperdense_intraparenchymal_blood, subarachnoid_blood, mass_effect_lesion, atrophy, small_vessel_disease, skull_fracture], healthy: {normal: 0.82, atrophy: 0.09, small_vessel_disease: 0.09}}
+  - {key: mri_brain_finding, display: "MRI brain", kind: categorical, values: [normal, diffusion_restriction, periventricular_demyelinating_lesions, temporal_lobe_signal_change, mesial_temporal_atrophy, mass_lesion, microhemorrhages], healthy: {normal: 0.86, microhemorrhages: 0.07, mesial_temporal_atrophy: 0.07}}
+  - {key: ct_abdomen_finding, display: "CT abdomen and pelvis", kind: categorical, values: [normal, appendiceal_thickening, pericolonic_fat_stranding, pancreatic_inflammation, dilated_loops_transition_point, ureteral_calculus, gallbladder_wall_thickening, hepatic_nodularity_ascites, colonic_mass, pancreatic_mass, free_air], healthy: {normal: 0.89, pericolonic_fat_stranding: 0.04, gallbladder_wall_thickening: 0.04, hepatic_nodularity_ascites: 0.03}}
+  - {key: abdominal_us_finding, display: "Abdominal ultrasound", kind: categorical, values: [normal, gallstones_with_wall_thickening, gallstones_only, dilated_bile_duct, increased_hepatic_echogenicity, nodular_liver_ascites, hydronephrosis, adnexal_mass_no_iup], healthy: {normal: 0.80, gallstones_only: 0.08, increased_hepatic_echogenicity: 0.12}}
+  - {key: echo_finding, display: "Transthoracic echocardiogram", kind: categorical, values: [normal, reduced_ejection_fraction, preserved_ef_diastolic_dysfunction, regional_wall_motion_abnormality, pericardial_effusion_with_collapse, valvular_vegetation, aortic_valve_gradient_elevated, right_ventricular_strain], healthy: {normal: 0.84, preserved_ef_diastolic_dysfunction: 0.10, aortic_valve_gradient_elevated: 0.06}}
+  - {key: leg_doppler_finding, display: "Lower extremity venous Doppler", kind: categorical, values: [normal, noncompressible_vein_with_thrombus, superficial_thrombophlebitis, chronic_post_thrombotic_change], healthy: {normal: 0.92, chronic_post_thrombotic_change: 0.05, superficial_thrombophlebitis: 0.03}}
+  - {key: hip_xray_finding, display: "Hip radiograph", kind: categorical, values: [normal, cortical_discontinuity_femoral_neck, joint_space_narrowing_osteophytes, osteopenia], healthy: {normal: 0.86, joint_space_narrowing_osteophytes: 0.09, osteopenia: 0.05}}
+  - {key: blood_culture, display: "Blood culture", kind: categorical, values: [no_growth, gram_positive_cocci, gram_negative_rods, contaminant_skin_flora], healthy: {no_growth: 0.95, contaminant_skin_flora: 0.05}}
+  - {key: urine_culture, display: "Urine culture", kind: categorical, values: [no_growth, e_coli_high_count, other_uropathogen, mixed_flora], healthy: {no_growth: 0.86, mixed_flora: 0.11, other_uropathogen: 0.03}}
+  - {key: stool_studies, display: "Stool studies", kind: categorical, values: [negative, c_difficile_toxin_positive, enteric_pathogen_positive, occult_blood_positive], healthy: {negative: 0.93, occult_blood_positive: 0.05, enteric_pathogen_positive: 0.02}}
+  - {key: respiratory_pcr, display: "Respiratory viral PCR panel", kind: categorical, values: [negative, influenza_positive, sars_cov_2_positive, rsv_positive, other_virus_positive], healthy: {negative: 0.90, other_virus_positive: 0.06, rsv_positive: 0.02, influenza_positive: 0.01, sars_cov_2_positive: 0.01}}
+  - {key: rapid_strep, display: "Rapid group A streptococcal antigen", kind: categorical, values: [negative, positive], healthy: {negative: 0.95, positive: 0.05}}
+  - {key: monospot, display: "Heterophile antibody test", kind: categorical, values: [negative, positive], healthy: {negative: 0.97, positive: 0.03}}
+  - {key: hiv_ag_ab, display: "HIV antigen/antibody assay", kind: categorical, values: [nonreactive, reactive], healthy: {nonreactive: 0.995, reactive: 0.005}}
+  - {key: hepatitis_serology, display: "Viral hepatitis serology", kind: categorical, values: [nonreactive, hbsag_positive, hcv_antibody_positive, immune_vaccinated], healthy: {nonreactive: 0.86, immune_vaccinated: 0.13, hcv_antibody_positive: 0.005, hbsag_positive: 0.005}}
+  - {key: tb_igra, display: "Interferon gamma release assay", kind: categorical, values: [negative, positive, indeterminate], healthy: {negative: 0.95, positive: 0.02, indeterminate: 0.03}}
+  - {key: lyme_serology, display: "Lyme serology", kind: categorical, values: [negative, positive], healthy: {negative: 0.97, positive: 0.03}}
+  - {key: ana, display: "Antinuclear antibody", kind: categorical, values: [negative, low_titre_positive, high_titre_positive], healthy: {negative: 0.85, low_titre_positive: 0.13, high_titre_positive: 0.02}}
+  - {key: rf_anti_ccp, display: "Rheumatoid factor and anti-CCP", kind: categorical, values: [negative, rf_only_positive, anti_ccp_positive], healthy: {negative: 0.93, rf_only_positive: 0.06, anti_ccp_positive: 0.01}}
+  - {key: csf_profile, display: "Cerebrospinal fluid profile", kind: categorical, values: [normal, neutrophilic_low_glucose, lymphocytic_normal_glucose, lymphocytic_with_rbc, xanthochromia, elevated_protein_normal_cells], healthy: {normal: 0.94, elevated_protein_normal_cells: 0.06}}
+  - {key: joint_aspirate, display: "Synovial fluid analysis", kind: categorical, values: [normal, purulent_high_wbc, negatively_birefringent_crystals, inflammatory_no_crystals, noninflammatory], healthy: {normal: 0.80, noninflammatory: 0.20}}
+  - {key: spirometry, display: "Spirometry", kind: categorical, values: [normal, obstructive_reversible, obstructive_fixed, restrictive], healthy: {normal: 0.88, obstructive_reversible: 0.05, restrictive: 0.04, obstructive_fixed: 0.03}}
+  - {key: endoscopy_finding, display: "Upper endoscopy", kind: categorical, values: [normal, gastroduodenal_ulcer, esophagitis, bleeding_varices, gastric_mass, villous_atrophy], healthy: {normal: 0.83, esophagitis: 0.12, gastroduodenal_ulcer: 0.05}}
+  - {key: colonoscopy_finding, display: "Colonoscopy", kind: categorical, values: [normal, continuous_mucosal_inflammation, skip_lesions_ulceration, mass_lesion, diverticulosis, polyps_benign], healthy: {normal: 0.72, diverticulosis: 0.16, polyps_benign: 0.12}}
+  - {key: sleep_study, display: "Polysomnography", kind: categorical, values: [normal, elevated_apnea_hypopnea_index, mildly_elevated_ahi], healthy: {normal: 0.80, mildly_elevated_ahi: 0.15, elevated_apnea_hypopnea_index: 0.05}}
+  - {key: bone_density, display: "DEXA bone densitometry", kind: categorical, values: [normal, osteopenia, t_score_below_minus_2_5], healthy: {normal: 0.72, osteopenia: 0.22, t_score_below_minus_2_5: 0.06}}
+  - {key: peripheral_smear, display: "Peripheral blood smear", kind: categorical, values: [normal, microcytic_hypochromic, macrocytic_hypersegmented, blasts_present, sickled_cells, rouleaux, schistocytes], healthy: {normal: 0.93, microcytic_hypochromic: 0.04, macrocytic_hypersegmented: 0.03}}
+  - {key: spep, display: "Serum protein electrophoresis", kind: categorical, values: [normal, monoclonal_spike, polyclonal_increase], healthy: {normal: 0.94, polyclonal_increase: 0.05, monoclonal_spike: 0.01}}
+  - {key: toxicology_screen, display: "Urine toxicology screen", kind: categorical, values: [negative, opioids_positive, stimulants_positive, multiple_positive], healthy: {negative: 0.92, opioids_positive: 0.04, stimulants_positive: 0.02, multiple_positive: 0.02}}
+  - {key: acetaminophen_level, display: "Serum acetaminophen level", kind: categorical, values: [undetectable, therapeutic, toxic_range], healthy: {undetectable: 0.86, therapeutic: 0.13, toxic_range: 0.01}}
+  - {key: pelvic_us_finding, display: "Pelvic ultrasound", kind: categorical, values: [nonpregnant_normal, intrauterine_pregnancy, empty_uterus_free_fluid, adnexal_mass], healthy: {nonpregnant_normal: 0.90, intrauterine_pregnancy: 0.07, adnexal_mass: 0.03}}
+  - {key: skin_exam_finding, display: "Structured dermatologic examination", kind: categorical, values: [normal, well_demarcated_erythema_warmth, silvery_plaques_extensor, flexural_lichenified_eczema, wheals_transient, target_lesion_expanding_erythema, crepitus_dusky_bullae], healthy: {normal: 0.88, silvery_plaques_extensor: 0.04, flexural_lichenified_eczema: 0.04, wheals_transient: 0.04}}
+  - {key: cognitive_screen, display: "Structured cognitive screen", kind: categorical, values: [normal, mild_impairment, moderate_impairment, severe_impairment], healthy: {normal: 0.84, mild_impairment: 0.13, moderate_impairment: 0.03}}
+  - {key: depression_screen, display: "Structured mood and anxiety screen", kind: categorical, values: [negative, depressive_symptoms, anxiety_symptoms, mixed_symptoms, psychotic_features, manic_features], healthy: {negative: 0.80, depressive_symptoms: 0.09, anxiety_symptoms: 0.09, mixed_symptoms: 0.02}}
+
+# Orderable actions. `analytes` lists what the order returns. Panels overlap with
+# singletons on purpose -- dedup is tested (test_dedup_does_not_double_charge).
+tests:
+  - {key: cbc, display: "Complete blood count with differential", category: lab, analytes: [hemoglobin, mcv, wbc, neutrophil_pct, lymphocyte_pct, platelets]}
+  - {key: hemoglobin_only, display: "Hemoglobin", category: lab, analytes: [hemoglobin]}
+  - {key: platelet_count, display: "Platelet count", category: lab, analytes: [platelets]}
+  - {key: reticulocyte_count, display: "Reticulocyte count", category: lab, analytes: [reticulocyte_pct]}
+  - {key: peripheral_smear, display: "Peripheral blood smear", category: lab, analytes: [peripheral_smear]}
+  - {key: coagulation_panel, display: "Coagulation panel", category: lab, analytes: [inr, ptt]}
+  - {key: d_dimer, display: "D-dimer", category: lab, analytes: [d_dimer]}
+  - {key: bmp, display: "Basic metabolic panel", category: lab, analytes: [sodium, potassium, chloride, bicarbonate, bun, creatinine, glucose, calcium, egfr, anion_gap]}
+  - {key: cmp, display: "Comprehensive metabolic panel", category: lab, analytes: [sodium, potassium, chloride, bicarbonate, bun, creatinine, glucose, calcium, egfr, anion_gap, albumin, ast, alt, alk_phos, total_bilirubin]}
+  - {key: electrolytes_focused, display: "Magnesium and phosphate", category: lab, analytes: [magnesium, phosphate]}
+  - {key: renal_function, display: "Creatinine and eGFR", category: lab, analytes: [creatinine, egfr]}
+  - {key: serum_osmolality, display: "Serum osmolality", category: lab, analytes: [osmolality]}
+  - {key: uric_acid, display: "Uric acid", category: lab, analytes: [uric_acid]}
+  - {key: liver_panel, display: "Hepatic function panel", category: lab, analytes: [ast, alt, alk_phos, total_bilirubin, albumin]}
+  - {key: lipase, display: "Lipase", category: lab, analytes: [lipase]}
+  - {key: ammonia, display: "Ammonia", category: lab, analytes: [ammonia]}
+  - {key: troponin, display: "High-sensitivity troponin", category: lab, analytes: [troponin]}
+  - {key: bnp, display: "B-type natriuretic peptide", category: lab, analytes: [bnp]}
+  - {key: creatine_kinase, display: "Creatine kinase", category: lab, analytes: [ck]}
+  - {key: crp, display: "C-reactive protein", category: lab, analytes: [crp]}
+  - {key: esr, display: "Erythrocyte sedimentation rate", category: lab, analytes: [esr]}
+  - {key: procalcitonin, display: "Procalcitonin", category: lab, analytes: [procalcitonin]}
+  - {key: lactate, display: "Lactate", category: lab, analytes: [lactate]}
+  - {key: thyroid_panel, display: "Thyroid panel", category: lab, analytes: [tsh, free_t4]}
+  - {key: hba1c, display: "Glycated hemoglobin", category: lab, analytes: [hba1c]}
+  - {key: glucose_fingerstick, display: "Point-of-care glucose", category: bedside, analytes: [glucose]}
+  - {key: lipid_panel, display: "Lipid panel", category: lab, analytes: [ldl, hdl, triglycerides]}
+  - {key: cortisol_am, display: "Morning cortisol", category: lab, analytes: [cortisol_am]}
+  - {key: pth, display: "Parathyroid hormone", category: lab, analytes: [pth]}
+  - {key: iron_studies, display: "Iron studies", category: lab, analytes: [ferritin, iron_saturation]}
+  - {key: b12_folate, display: "Vitamin B12", category: lab, analytes: [vitamin_b12]}
+  - {key: vitamin_d, display: "25-hydroxyvitamin D", category: lab, analytes: [vitamin_d_25oh]}
+  - {key: ketones, display: "Beta-hydroxybutyrate", category: lab, analytes: [beta_hydroxybutyrate]}
+  - {key: hcg_quant, display: "Quantitative beta-hCG", category: lab, analytes: [hcg_quant]}
+  - {key: arterial_blood_gas, display: "Arterial blood gas", category: lab, analytes: [ph_arterial, pco2, po2]}
+  - {key: carboxyhemoglobin, display: "Carboxyhemoglobin", category: lab, analytes: [carboxyhemoglobin]}
+  - {key: urinalysis, display: "Urinalysis", category: lab, analytes: [urine_protein, urine_wbc, urine_rbc]}
+  - {key: urine_culture, display: "Urine culture", category: micro, analytes: [urine_culture]}
+  - {key: blood_culture, display: "Blood culture, two sets", category: micro, analytes: [blood_culture]}
+  - {key: stool_studies, display: "Stool studies", category: micro, analytes: [stool_studies]}
+  - {key: respiratory_pcr, display: "Respiratory viral PCR panel", category: micro, analytes: [respiratory_pcr]}
+  - {key: rapid_strep, display: "Rapid group A streptococcal antigen", category: micro, analytes: [rapid_strep]}
+  - {key: monospot, display: "Heterophile antibody test", category: micro, analytes: [monospot]}
+  - {key: hiv_test, display: "HIV antigen/antibody assay", category: micro, analytes: [hiv_ag_ab]}
+  - {key: hepatitis_serology, display: "Viral hepatitis serology", category: micro, analytes: [hepatitis_serology]}
+  - {key: tb_igra, display: "Interferon gamma release assay", category: micro, analytes: [tb_igra]}
+  - {key: lyme_serology, display: "Lyme serology", category: micro, analytes: [lyme_serology]}
+  - {key: ana, display: "Antinuclear antibody", category: lab, analytes: [ana]}
+  - {key: rf_anti_ccp, display: "Rheumatoid factor and anti-CCP", category: lab, analytes: [rf_anti_ccp]}
+  - {key: spep, display: "Serum protein electrophoresis", category: lab, analytes: [spep]}
+  - {key: toxicology_screen, display: "Urine toxicology screen", category: lab, analytes: [toxicology_screen]}
+  - {key: acetaminophen_level, display: "Serum acetaminophen level", category: lab, analytes: [acetaminophen_level]}
+  - {key: ecg, display: "12-lead ECG", category: bedside, analytes: [ecg_finding]}
+  - {key: chest_xray, display: "Chest radiograph", category: imaging, analytes: [chest_xray_finding]}
+  - {key: ct_chest, display: "CT chest", category: imaging, analytes: [ct_chest_finding]}
+  - {key: ct_head, display: "CT head without contrast", category: imaging, analytes: [ct_head_finding]}
+  - {key: mri_brain, display: "MRI brain", category: imaging, analytes: [mri_brain_finding]}
+  - {key: ct_abdomen, display: "CT abdomen and pelvis", category: imaging, analytes: [ct_abdomen_finding]}
+  - {key: abdominal_us, display: "Abdominal ultrasound", category: imaging, analytes: [abdominal_us_finding]}
+  - {key: pelvic_us, display: "Pelvic ultrasound", category: imaging, analytes: [pelvic_us_finding]}
+  - {key: echocardiogram, display: "Transthoracic echocardiogram", category: imaging, analytes: [echo_finding]}
+  - {key: leg_doppler, display: "Lower extremity venous Doppler", category: imaging, analytes: [leg_doppler_finding]}
+  - {key: hip_xray, display: "Hip radiograph", category: imaging, analytes: [hip_xray_finding]}
+  - {key: bone_density, display: "DEXA bone densitometry", category: imaging, analytes: [bone_density]}
+  - {key: lumbar_puncture, display: "Lumbar puncture with CSF analysis", category: procedure, analytes: [csf_profile]}
+  - {key: joint_aspiration, display: "Joint aspiration", category: procedure, analytes: [joint_aspirate]}
+  - {key: upper_endoscopy, display: "Upper endoscopy", category: procedure, analytes: [endoscopy_finding]}
+  - {key: colonoscopy, display: "Colonoscopy", category: procedure, analytes: [colonoscopy_finding]}
+  - {key: spirometry, display: "Spirometry with bronchodilator", category: bedside, analytes: [spirometry]}
+  - {key: sleep_study, display: "Polysomnography", category: bedside, analytes: [sleep_study]}
+  - {key: skin_exam, display: "Structured dermatologic examination", category: bedside, analytes: [skin_exam_finding]}
+  - {key: cognitive_screen, display: "Structured cognitive screen", category: bedside, analytes: [cognitive_screen]}
+  - {key: mood_screen, display: "Structured mood and anxiety screen", category: bedside, analytes: [depression_screen]}
+
+# Prescribable treatments. Keys and display strings only -- appropriateness and
+# contraindication rules live in dxenv/configs/treatments.yaml, read by reward/, because
+# env/ must not import reward/ and the environment has no business knowing what is
+# "right". `drug_class` is here because it is a property of the agent, not of the reward.
+treatments:
+  - {key: no_pharmacotherapy, display: "Supportive care only", drug_class: none}
+  - {key: amoxicillin, display: "Amoxicillin", drug_class: penicillin}
+  - {key: amoxicillin_clavulanate, display: "Amoxicillin-clavulanate", drug_class: penicillin}
+  - {key: penicillin_v, display: "Penicillin V", drug_class: penicillin}
+  - {key: piperacillin_tazobactam, display: "Piperacillin-tazobactam", drug_class: penicillin}
+  - {key: cefazolin, display: "Cefazolin", drug_class: cephalosporin}
+  - {key: ceftriaxone, display: "Ceftriaxone", drug_class: cephalosporin}
+  - {key: azithromycin, display: "Azithromycin", drug_class: macrolide}
+  - {key: doxycycline, display: "Doxycycline", drug_class: tetracycline}
+  - {key: ciprofloxacin, display: "Ciprofloxacin", drug_class: fluoroquinolone}
+  - {key: levofloxacin, display: "Levofloxacin", drug_class: fluoroquinolone}
+  - {key: nitrofurantoin, display: "Nitrofurantoin", drug_class: nitrofuran}
+  - {key: trimethoprim_sulfamethoxazole, display: "Trimethoprim-sulfamethoxazole", drug_class: sulfonamide}
+  - {key: vancomycin_iv, display: "Intravenous vancomycin", drug_class: glycopeptide}
+  - {key: vancomycin_oral, display: "Oral vancomycin", drug_class: glycopeptide}
+  - {key: metronidazole, display: "Metronidazole", drug_class: nitroimidazole}
+  - {key: antitubercular_regimen, display: "Four-drug antitubercular regimen", drug_class: antitubercular}
+  - {key: oseltamivir, display: "Oseltamivir", drug_class: antiviral}
+  - {key: acyclovir_iv, display: "Intravenous acyclovir", drug_class: antiviral}
+  - {key: nirmatrelvir_ritonavir, display: "Nirmatrelvir-ritonavir", drug_class: antiviral}
+  - {key: antiretroviral_therapy, display: "Antiretroviral therapy", drug_class: antiviral}
+  - {key: aspirin, display: "Aspirin", drug_class: antiplatelet}
+  - {key: clopidogrel, display: "Clopidogrel", drug_class: antiplatelet}
+  - {key: heparin_infusion, display: "Unfractionated heparin infusion", drug_class: anticoagulant}
+  - {key: enoxaparin, display: "Enoxaparin", drug_class: anticoagulant}
+  - {key: apixaban, display: "Apixaban", drug_class: anticoagulant}
+  - {key: thrombolysis, display: "Systemic thrombolysis", drug_class: thrombolytic}
+  - {key: atorvastatin, display: "Atorvastatin", drug_class: statin}
+  - {key: metoprolol, display: "Metoprolol", drug_class: beta_blocker}
+  - {key: lisinopril, display: "Lisinopril", drug_class: ace_inhibitor}
+  - {key: losartan, display: "Losartan", drug_class: arb}
+  - {key: sacubitril_valsartan, display: "Sacubitril-valsartan", drug_class: arni}
+  - {key: amlodipine, display: "Amlodipine", drug_class: calcium_channel_blocker}
+  - {key: furosemide, display: "Furosemide", drug_class: loop_diuretic}
+  - {key: nitroglycerin, display: "Nitroglycerin", drug_class: nitrate}
+  - {key: digoxin, display: "Digoxin", drug_class: cardiac_glycoside}
+  - {key: insulin_infusion, display: "Intravenous insulin infusion", drug_class: insulin}
+  - {key: insulin_basal_bolus, display: "Basal-bolus insulin", drug_class: insulin}
+  - {key: metformin, display: "Metformin", drug_class: biguanide}
+  - {key: dextrose_50, display: "Intravenous dextrose", drug_class: glucose}
+  - {key: levothyroxine, display: "Levothyroxine", drug_class: thyroid_hormone}
+  - {key: methimazole, display: "Methimazole", drug_class: thionamide}
+  - {key: hydrocortisone_stress_dose, display: "Stress-dose hydrocortisone", drug_class: corticosteroid}
+  - {key: prednisone, display: "Oral prednisone", drug_class: corticosteroid}
+  - {key: albuterol, display: "Inhaled albuterol", drug_class: beta_agonist}
+  - {key: inhaled_corticosteroid, display: "Inhaled corticosteroid", drug_class: corticosteroid}
+  - {key: supplemental_oxygen, display: "Supplemental oxygen", drug_class: oxygen}
+  - {key: pantoprazole, display: "Pantoprazole", drug_class: proton_pump_inhibitor}
+  - {key: ondansetron, display: "Ondansetron", drug_class: antiemetic}
+  - {key: iv_fluids_isotonic, display: "Isotonic intravenous fluids", drug_class: fluid}
+  - {key: hypertonic_saline, display: "Hypertonic saline", drug_class: fluid}
+  - {key: acetaminophen, display: "Acetaminophen", drug_class: analgesic}
+  - {key: ibuprofen, display: "Ibuprofen", drug_class: nsaid}
+  - {key: morphine, display: "Morphine", drug_class: opioid}
+  - {key: colchicine, display: "Colchicine", drug_class: antigout}
+  - {key: allopurinol, display: "Allopurinol", drug_class: antigout}
+  - {key: iron_supplement, display: "Oral iron", drug_class: supplement}
+  - {key: vitamin_b12_injection, display: "Vitamin B12 injection", drug_class: supplement}
+  - {key: vitamin_d_supplement, display: "Vitamin D supplement", drug_class: supplement}
+  - {key: calcium_gluconate, display: "Intravenous calcium gluconate", drug_class: electrolyte}
+  - {key: potassium_binder, display: "Potassium binding resin", drug_class: electrolyte}
+  - {key: bisphosphonate, display: "Bisphosphonate", drug_class: bisphosphonate}
+  - {key: sertraline, display: "Sertraline", drug_class: ssri}
+  - {key: lorazepam, display: "Lorazepam", drug_class: benzodiazepine}
+  - {key: levetiracetam, display: "Levetiracetam", drug_class: antiepileptic}
+  - {key: sumatriptan, display: "Sumatriptan", drug_class: triptan}
+  - {key: naloxone, display: "Naloxone", drug_class: opioid_antagonist}
+  - {key: epinephrine_im, display: "Intramuscular epinephrine", drug_class: sympathomimetic}
+  - {key: n_acetylcysteine, display: "N-acetylcysteine", drug_class: antidote}
+  - {key: magnesium_sulfate, display: "Magnesium sulfate", drug_class: electrolyte}
+  - {key: urgent_surgical_referral, display: "Urgent surgical referral", drug_class: procedure}
+  - {key: urgent_specialty_referral, display: "Urgent specialty referral", drug_class: procedure}
+
+# Auto-revealed at t=0: demographics-adjacent signal the agent gets for free.
+# Same schema as `analytes`, but NOT orderable -- they are never on the action menu and
+# are exempt from the "reachable by some test" check. They are still full members of the
+# observation model, so every condition specifies (or inherits) a distribution for each.
+vitals:
+  - {key: heart_rate, display: "Heart rate", kind: quantitative, unit: "bpm", ref_low: 60.0, ref_high: 100.0, bounds: [20.0, 240.0], healthy: {mean: 76.0, sd: 10.0}}
+  - {key: systolic_bp, display: "Systolic blood pressure", kind: quantitative, unit: "mmHg", ref_low: 90.0, ref_high: 130.0, bounds: [40.0, 280.0], healthy: {mean: 120.0, sd: 11.0}}
+  - {key: diastolic_bp, display: "Diastolic blood pressure", kind: quantitative, unit: "mmHg", ref_low: 60.0, ref_high: 85.0, bounds: [20.0, 160.0], healthy: {mean: 75.0, sd: 8.0}}
+  - {key: respiratory_rate, display: "Respiratory rate", kind: quantitative, unit: "breaths/min", ref_low: 12.0, ref_high: 20.0, bounds: [4.0, 70.0], healthy: {mean: 15.0, sd: 2.0}}
+  - {key: temperature, display: "Temperature", kind: quantitative, unit: "degC", ref_low: 36.1, ref_high: 37.8, bounds: [30.0, 43.5], healthy: {mean: 36.8, sd: 0.3}}
+  - {key: spo2, display: "Oxygen saturation", kind: quantitative, unit: "%", ref_low: 94.0, ref_high: 100.0, bounds: [50.0, 100.0], healthy: {mean: 97.5, sd: 1.2}}
+  - {key: bmi, display: "Body mass index", kind: quantitative, unit: "kg/m2", ref_low: 18.5, ref_high: 25.0, bounds: [12.0, 70.0], healthy: {mean: 26.5, sd: 4.5}}
+  - {key: pain_score, display: "Pain score", kind: quantitative, unit: "0-10", ref_low: 0.0, ref_high: 3.0, bounds: [0.0, 10.0], healthy: {mean: 1.0, sd: 1.0}}
+  - {key: presenting_complaint, display: "Presenting complaint", kind: categorical, values: [chest_pain, dyspnea, cough, fever, abdominal_pain, headache, dizziness, syncope, palpitations, nausea_vomiting, diarrhea, dysuria, lumbar_pain, joint_pain, rash, focal_weakness, confusion, fatigue, weight_loss, bleeding, sore_throat, leg_swelling, seizure_event, mood_disturbance, vision_change, numbness_tingling, trauma_fall, exposure_or_ingestion, routine_review], healthy: {routine_review: 0.55, fatigue: 0.15, lumbar_pain: 0.08, headache: 0.07, joint_pain: 0.05, cough: 0.04, abdominal_pain: 0.03, dizziness: 0.03}}

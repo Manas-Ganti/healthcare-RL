@@ -1,0 +1,169 @@
+# Fixed FLAT diagnostic label set for dxenv.
+#
+# FLATNESS IS LOAD-BEARING (CLAUDE.md 6.1): no label may be an ancestor of another,
+# because hierarchy lets an agent hedge upward and collect partial credit everywhere.
+#
+# Fields
+#   slug     : stable identifier. Never renamed; the frozen label-set hash covers it.
+#   display  : human-readable name. Used by the leak scrubber.
+#   system   : organ-system grouping. Reporting/stratification ONLY -- it is deliberately
+#              NOT a scoring hierarchy. Nothing in reward/ may read this field.
+#   urgency  : severity tier 1-4, see dxenv/configs/severity.yaml for the rationale.
+#              1 benign/chronic-stable | 2 needs treatment | 3 urgent | 4 emergent
+#   prior    : UNNORMALISED prevalence weight. Normalised at load time.
+#   synonyms : alternative surface forms. Used by the observation leak scrubber and by
+#              test_no_label_string_in_observation. Under-listing a synonym is how a leak
+#              survives the test suite -- add aggressively, this list is a safety net.
+#
+# SNOMED codes live in snomed_map.yaml, NOT here, so that the label set can be frozen
+# independently of terminology-release churn.
+
+- {slug: acute_myocardial_infarction, display: "Acute myocardial infarction", system: cardiovascular, urgency: 4, prior: 0.9, synonyms: ["MI", "heart attack", "STEMI", "NSTEMI", "myocardial infarct"]}
+- {slug: unstable_angina, display: "Unstable angina", system: cardiovascular, urgency: 4, prior: 0.6, synonyms: ["ACS", "acute coronary syndrome"]}
+- {slug: stable_angina, display: "Stable angina pectoris", system: cardiovascular, urgency: 2, prior: 1.2, synonyms: ["angina", "exertional chest pain"]}
+- {slug: heart_failure_reduced_ef, display: "Heart failure with reduced ejection fraction", system: cardiovascular, urgency: 3, prior: 1.4, synonyms: ["HFrEF", "systolic heart failure", "CHF"]}
+- {slug: heart_failure_preserved_ef, display: "Heart failure with preserved ejection fraction", system: cardiovascular, urgency: 3, prior: 1.1, synonyms: ["HFpEF", "diastolic heart failure"]}
+- {slug: atrial_fibrillation, display: "Atrial fibrillation", system: cardiovascular, urgency: 3, prior: 1.6, synonyms: ["AF", "AFib", "irregular rhythm"]}
+- {slug: supraventricular_tachycardia, display: "Supraventricular tachycardia", system: cardiovascular, urgency: 3, prior: 0.4, synonyms: ["SVT", "PSVT"]}
+- {slug: essential_hypertension, display: "Essential hypertension", system: cardiovascular, urgency: 1, prior: 5.5, synonyms: ["high blood pressure", "HTN"]}
+- {slug: hypertensive_emergency, display: "Hypertensive emergency", system: cardiovascular, urgency: 4, prior: 0.2, synonyms: ["malignant hypertension", "hypertensive crisis"]}
+- {slug: aortic_dissection, display: "Aortic dissection", system: cardiovascular, urgency: 4, prior: 0.08, synonyms: ["dissecting aneurysm"]}
+- {slug: pulmonary_embolism, display: "Pulmonary embolism", system: cardiovascular, urgency: 4, prior: 0.5, synonyms: ["PE", "lung clot"]}
+- {slug: deep_vein_thrombosis, display: "Deep vein thrombosis", system: cardiovascular, urgency: 3, prior: 0.7, synonyms: ["DVT", "venous thrombosis"]}
+- {slug: peripheral_artery_disease, display: "Peripheral artery disease", system: cardiovascular, urgency: 2, prior: 0.8, synonyms: ["PAD", "claudication"]}
+- {slug: infective_endocarditis, display: "Infective endocarditis", system: cardiovascular, urgency: 4, prior: 0.1, synonyms: ["bacterial endocarditis"]}
+- {slug: acute_pericarditis, display: "Acute pericarditis", system: cardiovascular, urgency: 3, prior: 0.25, synonyms: ["pericarditis"]}
+- {slug: myocarditis, display: "Myocarditis", system: cardiovascular, urgency: 4, prior: 0.15, synonyms: ["cardiac inflammation"]}
+- {slug: cardiac_tamponade, display: "Cardiac tamponade", system: cardiovascular, urgency: 4, prior: 0.05, synonyms: ["pericardial tamponade"]}
+- {slug: aortic_stenosis, display: "Aortic stenosis", system: cardiovascular, urgency: 2, prior: 0.5, synonyms: ["AS", "valvular stenosis"]}
+- {slug: community_acquired_pneumonia, display: "Community-acquired pneumonia", system: respiratory, urgency: 3, prior: 2.2, synonyms: ["CAP", "pneumonia", "lung infection"]}
+- {slug: aspiration_pneumonia, display: "Aspiration pneumonia", system: respiratory, urgency: 3, prior: 0.4, synonyms: ["aspiration pneumonitis"]}
+- {slug: covid19, display: "COVID-19", system: respiratory, urgency: 3, prior: 2.0, synonyms: ["SARS-CoV-2", "coronavirus disease", "COVID"]}
+- {slug: influenza, display: "Influenza", system: respiratory, urgency: 2, prior: 2.4, synonyms: ["flu", "seasonal influenza"]}
+- {slug: acute_bronchitis, display: "Acute bronchitis", system: respiratory, urgency: 1, prior: 2.6, synonyms: ["chest cold", "bronchitis"]}
+- {slug: asthma_exacerbation, display: "Asthma exacerbation", system: respiratory, urgency: 3, prior: 1.8, synonyms: ["asthma attack", "reactive airway disease", "asthma"]}
+- {slug: copd_exacerbation, display: "COPD exacerbation", system: respiratory, urgency: 3, prior: 1.5, synonyms: ["COPD", "emphysema", "chronic obstructive pulmonary disease"]}
+- {slug: pneumothorax, display: "Pneumothorax", system: respiratory, urgency: 4, prior: 0.2, synonyms: ["collapsed lung"]}
+- {slug: pleural_effusion, display: "Pleural effusion", system: respiratory, urgency: 3, prior: 0.5, synonyms: ["fluid on the lung"]}
+- {slug: lung_cancer, display: "Lung cancer", system: respiratory, urgency: 4, prior: 0.35, synonyms: ["bronchogenic carcinoma", "pulmonary malignancy"]}
+- {slug: pulmonary_fibrosis, display: "Pulmonary fibrosis", system: respiratory, urgency: 3, prior: 0.2, synonyms: ["interstitial lung disease", "IPF"]}
+- {slug: obstructive_sleep_apnea, display: "Obstructive sleep apnea", system: respiratory, urgency: 1, prior: 1.6, synonyms: ["OSA", "sleep apnea"]}
+- {slug: tuberculosis, display: "Pulmonary tuberculosis", system: respiratory, urgency: 3, prior: 0.15, synonyms: ["TB", "consumption"]}
+- {slug: upper_respiratory_infection, display: "Upper respiratory infection", system: respiratory, urgency: 1, prior: 4.0, synonyms: ["URI", "common cold", "viral URI"]}
+- {slug: acute_sinusitis, display: "Acute sinusitis", system: respiratory, urgency: 1, prior: 2.0, synonyms: ["sinus infection", "rhinosinusitis"]}
+- {slug: streptococcal_pharyngitis, display: "Streptococcal pharyngitis", system: respiratory, urgency: 2, prior: 1.6, synonyms: ["strep throat", "group A strep"]}
+- {slug: allergic_rhinitis, display: "Allergic rhinitis", system: respiratory, urgency: 1, prior: 3.0, synonyms: ["hay fever", "seasonal allergies"]}
+- {slug: type_1_diabetes, display: "Type 1 diabetes mellitus", system: endocrine, urgency: 2, prior: 0.6, synonyms: ["T1DM", "insulin-dependent diabetes", "juvenile diabetes"]}
+- {slug: type_2_diabetes, display: "Type 2 diabetes mellitus", system: endocrine, urgency: 2, prior: 4.5, synonyms: ["T2DM", "adult-onset diabetes", "diabetes"]}
+- {slug: diabetic_ketoacidosis, display: "Diabetic ketoacidosis", system: endocrine, urgency: 4, prior: 0.3, synonyms: ["DKA"]}
+- {slug: hyperosmolar_hyperglycemic_state, display: "Hyperosmolar hyperglycemic state", system: endocrine, urgency: 4, prior: 0.12, synonyms: ["HHS", "hyperosmolar coma"]}
+- {slug: hypoglycemia, display: "Hypoglycemia", system: endocrine, urgency: 3, prior: 0.6, synonyms: ["low blood sugar"]}
+- {slug: hypothyroidism, display: "Hypothyroidism", system: endocrine, urgency: 1, prior: 2.2, synonyms: ["underactive thyroid", "Hashimoto thyroiditis"]}
+- {slug: hyperthyroidism, display: "Hyperthyroidism", system: endocrine, urgency: 2, prior: 0.7, synonyms: ["overactive thyroid", "Graves disease", "thyrotoxicosis"]}
+- {slug: thyroid_storm, display: "Thyroid storm", system: endocrine, urgency: 4, prior: 0.03, synonyms: ["thyrotoxic crisis"]}
+- {slug: adrenal_insufficiency, display: "Adrenal insufficiency", system: endocrine, urgency: 4, prior: 0.12, synonyms: ["Addison disease", "adrenal crisis"]}
+- {slug: cushing_syndrome, display: "Cushing syndrome", system: endocrine, urgency: 2, prior: 0.08, synonyms: ["hypercortisolism"]}
+- {slug: primary_hyperparathyroidism, display: "Primary hyperparathyroidism", system: endocrine, urgency: 2, prior: 0.25, synonyms: ["hyperparathyroidism"]}
+- {slug: dyslipidemia, display: "Dyslipidemia", system: endocrine, urgency: 1, prior: 4.2, synonyms: ["hyperlipidemia", "high cholesterol"]}
+- {slug: gout, display: "Gout", system: endocrine, urgency: 2, prior: 1.1, synonyms: ["gouty arthritis", "podagra"]}
+- {slug: vitamin_d_deficiency, display: "Vitamin D deficiency", system: endocrine, urgency: 1, prior: 2.0, synonyms: ["hypovitaminosis D"]}
+- {slug: hyponatremia, display: "Hyponatremia", system: endocrine, urgency: 3, prior: 0.9, synonyms: ["low sodium"]}
+- {slug: hyperkalemia, display: "Hyperkalemia", system: endocrine, urgency: 4, prior: 0.5, synonyms: ["high potassium"]}
+- {slug: hypercalcemia, display: "Hypercalcemia", system: endocrine, urgency: 3, prior: 0.3, synonyms: ["high calcium"]}
+- {slug: acute_appendicitis, display: "Acute appendicitis", system: gastrointestinal, urgency: 4, prior: 0.7, synonyms: ["appendicitis"]}
+- {slug: acute_cholecystitis, display: "Acute cholecystitis", system: gastrointestinal, urgency: 3, prior: 0.6, synonyms: ["gallbladder inflammation", "cholecystitis"]}
+- {slug: choledocholithiasis, display: "Choledocholithiasis", system: gastrointestinal, urgency: 3, prior: 0.25, synonyms: ["bile duct stone", "gallstone in duct"]}
+- {slug: acute_pancreatitis, display: "Acute pancreatitis", system: gastrointestinal, urgency: 4, prior: 0.5, synonyms: ["pancreatitis"]}
+- {slug: peptic_ulcer_disease, display: "Peptic ulcer disease", system: gastrointestinal, urgency: 2, prior: 0.9, synonyms: ["PUD", "gastric ulcer", "duodenal ulcer"]}
+- {slug: gastroesophageal_reflux, display: "Gastroesophageal reflux disease", system: gastrointestinal, urgency: 1, prior: 3.2, synonyms: ["GERD", "acid reflux", "heartburn"]}
+- {slug: viral_gastroenteritis, display: "Viral gastroenteritis", system: gastrointestinal, urgency: 1, prior: 3.0, synonyms: ["stomach flu", "gastroenteritis", "norovirus"]}
+- {slug: clostridioides_difficile_colitis, display: "Clostridioides difficile colitis", system: gastrointestinal, urgency: 3, prior: 0.3, synonyms: ["C diff", "C. difficile", "pseudomembranous colitis"]}
+- {slug: diverticulitis, display: "Diverticulitis", system: gastrointestinal, urgency: 3, prior: 0.7, synonyms: ["colonic diverticulitis"]}
+- {slug: crohn_disease, display: "Crohn disease", system: gastrointestinal, urgency: 2, prior: 0.3, synonyms: ["regional enteritis", "IBD Crohn"]}
+- {slug: ulcerative_colitis, display: "Ulcerative colitis", system: gastrointestinal, urgency: 2, prior: 0.3, synonyms: ["UC", "IBD colitis"]}
+- {slug: celiac_disease, display: "Celiac disease", system: gastrointestinal, urgency: 1, prior: 0.35, synonyms: ["gluten enteropathy", "sprue"]}
+- {slug: irritable_bowel_syndrome, display: "Irritable bowel syndrome", system: gastrointestinal, urgency: 1, prior: 1.8, synonyms: ["IBS", "spastic colon"]}
+- {slug: hepatic_cirrhosis, display: "Hepatic cirrhosis", system: gastrointestinal, urgency: 3, prior: 0.5, synonyms: ["cirrhosis", "end-stage liver disease"]}
+- {slug: alcoholic_hepatitis, display: "Alcoholic hepatitis", system: gastrointestinal, urgency: 3, prior: 0.25, synonyms: ["alcohol-related hepatitis"]}
+- {slug: chronic_hepatitis_b, display: "Chronic hepatitis B", system: gastrointestinal, urgency: 2, prior: 0.2, synonyms: ["HBV"]}
+- {slug: chronic_hepatitis_c, display: "Chronic hepatitis C", system: gastrointestinal, urgency: 2, prior: 0.3, synonyms: ["HCV"]}
+- {slug: nonalcoholic_fatty_liver, display: "Non-alcoholic fatty liver disease", system: gastrointestinal, urgency: 1, prior: 1.5, synonyms: ["NAFLD", "hepatic steatosis", "fatty liver"]}
+- {slug: upper_gi_bleed, display: "Upper gastrointestinal bleed", system: gastrointestinal, urgency: 4, prior: 0.4, synonyms: ["UGIB", "hematemesis", "melena"]}
+- {slug: small_bowel_obstruction, display: "Small bowel obstruction", system: gastrointestinal, urgency: 4, prior: 0.35, synonyms: ["SBO", "bowel obstruction", "ileus obstruction"]}
+- {slug: colorectal_cancer, display: "Colorectal cancer", system: gastrointestinal, urgency: 4, prior: 0.35, synonyms: ["colon cancer", "rectal carcinoma"]}
+- {slug: pancreatic_cancer, display: "Pancreatic cancer", system: gastrointestinal, urgency: 4, prior: 0.12, synonyms: ["pancreatic adenocarcinoma"]}
+- {slug: acute_kidney_injury, display: "Acute kidney injury", system: renal, urgency: 4, prior: 0.9, synonyms: ["AKI", "acute renal failure"]}
+- {slug: chronic_kidney_disease, display: "Chronic kidney disease", system: renal, urgency: 2, prior: 1.8, synonyms: ["CKD", "chronic renal insufficiency"]}
+- {slug: nephrolithiasis, display: "Nephrolithiasis", system: renal, urgency: 3, prior: 1.0, synonyms: ["kidney stone", "renal calculus", "ureterolithiasis"]}
+- {slug: urinary_tract_infection, display: "Urinary tract infection", system: renal, urgency: 2, prior: 2.8, synonyms: ["UTI", "cystitis", "bladder infection"]}
+- {slug: pyelonephritis, display: "Acute pyelonephritis", system: renal, urgency: 3, prior: 0.6, synonyms: ["kidney infection"]}
+- {slug: benign_prostatic_hyperplasia, display: "Benign prostatic hyperplasia", system: renal, urgency: 1, prior: 1.4, synonyms: ["BPH", "enlarged prostate"]}
+- {slug: prostate_cancer, display: "Prostate cancer", system: renal, urgency: 3, prior: 0.6, synonyms: ["prostatic carcinoma"]}
+- {slug: nephrotic_syndrome, display: "Nephrotic syndrome", system: renal, urgency: 3, prior: 0.15, synonyms: ["nephrosis"]}
+- {slug: glomerulonephritis, display: "Glomerulonephritis", system: renal, urgency: 3, prior: 0.15, synonyms: ["nephritic syndrome", "GN"]}
+- {slug: ischemic_stroke, display: "Ischemic stroke", system: neurologic, urgency: 4, prior: 0.8, synonyms: ["CVA", "cerebral infarction", "stroke"]}
+- {slug: hemorrhagic_stroke, display: "Hemorrhagic stroke", system: neurologic, urgency: 4, prior: 0.25, synonyms: ["intracerebral hemorrhage", "brain bleed"]}
+- {slug: subarachnoid_hemorrhage, display: "Subarachnoid hemorrhage", system: neurologic, urgency: 4, prior: 0.12, synonyms: ["SAH", "aneurysmal bleed"]}
+- {slug: transient_ischemic_attack, display: "Transient ischemic attack", system: neurologic, urgency: 4, prior: 0.4, synonyms: ["TIA", "mini stroke"]}
+- {slug: migraine, display: "Migraine", system: neurologic, urgency: 1, prior: 2.4, synonyms: ["migraine headache", "hemicrania"]}
+- {slug: tension_headache, display: "Tension-type headache", system: neurologic, urgency: 1, prior: 2.6, synonyms: ["tension headache"]}
+- {slug: epilepsy, display: "Epilepsy", system: neurologic, urgency: 3, prior: 0.6, synonyms: ["seizure disorder", "recurrent seizures"]}
+- {slug: status_epilepticus, display: "Status epilepticus", system: neurologic, urgency: 4, prior: 0.06, synonyms: ["prolonged seizure"]}
+- {slug: bacterial_meningitis, display: "Bacterial meningitis", system: neurologic, urgency: 4, prior: 0.08, synonyms: ["meningococcal meningitis", "pyogenic meningitis"]}
+- {slug: viral_meningitis, display: "Viral meningitis", system: neurologic, urgency: 3, prior: 0.15, synonyms: ["aseptic meningitis"]}
+- {slug: encephalitis, display: "Encephalitis", system: neurologic, urgency: 4, prior: 0.06, synonyms: ["brain inflammation", "herpes encephalitis"]}
+- {slug: alzheimer_dementia, display: "Alzheimer disease", system: neurologic, urgency: 2, prior: 1.0, synonyms: ["Alzheimer dementia", "senile dementia"]}
+- {slug: parkinson_disease, display: "Parkinson disease", system: neurologic, urgency: 2, prior: 0.4, synonyms: ["parkinsonism", "PD"]}
+- {slug: multiple_sclerosis, display: "Multiple sclerosis", system: neurologic, urgency: 2, prior: 0.2, synonyms: ["MS", "demyelinating disease"]}
+- {slug: peripheral_neuropathy, display: "Peripheral neuropathy", system: neurologic, urgency: 1, prior: 1.2, synonyms: ["polyneuropathy", "nerve damage"]}
+- {slug: bell_palsy, display: "Bell palsy", system: neurologic, urgency: 2, prior: 0.15, synonyms: ["facial nerve palsy", "idiopathic facial paralysis"]}
+- {slug: concussion, display: "Concussion", system: neurologic, urgency: 3, prior: 0.7, synonyms: ["mild traumatic brain injury", "mTBI"]}
+- {slug: benign_positional_vertigo, display: "Benign paroxysmal positional vertigo", system: neurologic, urgency: 1, prior: 0.9, synonyms: ["BPPV", "positional vertigo"]}
+- {slug: guillain_barre_syndrome, display: "Guillain-Barre syndrome", system: neurologic, urgency: 4, prior: 0.04, synonyms: ["GBS", "acute inflammatory polyneuropathy"]}
+- {slug: iron_deficiency_anemia, display: "Iron deficiency anemia", system: hematologic, urgency: 2, prior: 2.0, synonyms: ["IDA", "microcytic anemia"]}
+- {slug: b12_deficiency_anemia, display: "Vitamin B12 deficiency anemia", system: hematologic, urgency: 2, prior: 0.5, synonyms: ["pernicious anemia", "megaloblastic anemia"]}
+- {slug: anemia_of_chronic_disease, display: "Anemia of chronic disease", system: hematologic, urgency: 1, prior: 0.8, synonyms: ["anemia of inflammation"]}
+- {slug: sickle_cell_crisis, display: "Sickle cell crisis", system: hematologic, urgency: 4, prior: 0.1, synonyms: ["vaso-occlusive crisis", "sickle cell disease"]}
+- {slug: immune_thrombocytopenia, display: "Immune thrombocytopenia", system: hematologic, urgency: 3, prior: 0.08, synonyms: ["ITP", "low platelets"]}
+- {slug: acute_leukemia, display: "Acute leukemia", system: hematologic, urgency: 4, prior: 0.1, synonyms: ["AML", "ALL", "blood cancer"]}
+- {slug: lymphoma, display: "Lymphoma", system: hematologic, urgency: 4, prior: 0.2, synonyms: ["Hodgkin lymphoma", "non-Hodgkin lymphoma"]}
+- {slug: multiple_myeloma, display: "Multiple myeloma", system: hematologic, urgency: 4, prior: 0.1, synonyms: ["plasma cell myeloma"]}
+- {slug: sepsis, display: "Sepsis", system: infectious, urgency: 4, prior: 0.8, synonyms: ["septicemia", "bloodstream infection"]}
+- {slug: septic_shock, display: "Septic shock", system: infectious, urgency: 4, prior: 0.25, synonyms: ["distributive shock"]}
+- {slug: cellulitis, display: "Cellulitis", system: infectious, urgency: 2, prior: 1.4, synonyms: ["skin infection", "erysipelas"]}
+- {slug: osteomyelitis, display: "Osteomyelitis", system: infectious, urgency: 3, prior: 0.2, synonyms: ["bone infection"]}
+- {slug: necrotizing_fasciitis, display: "Necrotizing fasciitis", system: infectious, urgency: 4, prior: 0.02, synonyms: ["flesh-eating infection", "necrotising fasciitis"]}
+- {slug: lyme_disease, display: "Lyme disease", system: infectious, urgency: 2, prior: 0.3, synonyms: ["borreliosis", "erythema migrans"]}
+- {slug: hiv_infection, display: "HIV infection", system: infectious, urgency: 3, prior: 0.25, synonyms: ["human immunodeficiency virus", "AIDS"]}
+- {slug: infectious_mononucleosis, display: "Infectious mononucleosis", system: infectious, urgency: 1, prior: 0.5, synonyms: ["mono", "Epstein-Barr virus", "glandular fever"]}
+- {slug: rheumatoid_arthritis, display: "Rheumatoid arthritis", system: rheumatologic, urgency: 2, prior: 0.8, synonyms: ["RA", "inflammatory arthritis"]}
+- {slug: systemic_lupus_erythematosus, display: "Systemic lupus erythematosus", system: rheumatologic, urgency: 3, prior: 0.2, synonyms: ["SLE", "lupus"]}
+- {slug: osteoarthritis, display: "Osteoarthritis", system: rheumatologic, urgency: 1, prior: 4.0, synonyms: ["OA", "degenerative joint disease"]}
+- {slug: osteoporosis, display: "Osteoporosis", system: rheumatologic, urgency: 1, prior: 1.6, synonyms: ["bone thinning", "low bone density"]}
+- {slug: fibromyalgia, display: "Fibromyalgia", system: rheumatologic, urgency: 1, prior: 0.9, synonyms: ["fibromyalgia syndrome"]}
+- {slug: polymyalgia_rheumatica, display: "Polymyalgia rheumatica", system: rheumatologic, urgency: 2, prior: 0.2, synonyms: ["PMR"]}
+- {slug: giant_cell_arteritis, display: "Giant cell arteritis", system: rheumatologic, urgency: 4, prior: 0.08, synonyms: ["temporal arteritis", "GCA"]}
+- {slug: septic_arthritis, display: "Septic arthritis", system: rheumatologic, urgency: 4, prior: 0.08, synonyms: ["joint infection", "pyogenic arthritis"]}
+- {slug: psoriasis, display: "Psoriasis", system: dermatologic, urgency: 1, prior: 1.0, synonyms: ["plaque psoriasis"]}
+- {slug: atopic_dermatitis, display: "Atopic dermatitis", system: dermatologic, urgency: 1, prior: 1.6, synonyms: ["eczema"]}
+- {slug: contact_dermatitis, display: "Contact dermatitis", system: dermatologic, urgency: 1, prior: 1.4, synonyms: ["allergic contact rash"]}
+- {slug: urticaria, display: "Urticaria", system: dermatologic, urgency: 2, prior: 0.8, synonyms: ["hives", "wheals"]}
+- {slug: anaphylaxis, display: "Anaphylaxis", system: dermatologic, urgency: 4, prior: 0.15, synonyms: ["anaphylactic reaction", "severe allergic reaction"]}
+- {slug: hip_fracture, display: "Hip fracture", system: musculoskeletal, urgency: 4, prior: 0.4, synonyms: ["femoral neck fracture", "broken hip"]}
+- {slug: mechanical_low_back_pain, display: "Mechanical low back pain", system: musculoskeletal, urgency: 1, prior: 3.6, synonyms: ["lumbago", "low back strain", "back pain"]}
+- {slug: rhabdomyolysis, display: "Rhabdomyolysis", system: musculoskeletal, urgency: 4, prior: 0.12, synonyms: ["muscle breakdown"]}
+- {slug: major_depressive_disorder, display: "Major depressive disorder", system: psychiatric, urgency: 2, prior: 2.8, synonyms: ["depression", "MDD", "clinical depression"]}
+- {slug: generalized_anxiety_disorder, display: "Generalized anxiety disorder", system: psychiatric, urgency: 1, prior: 2.4, synonyms: ["GAD", "anxiety disorder"]}
+- {slug: bipolar_disorder, display: "Bipolar disorder", system: psychiatric, urgency: 3, prior: 0.5, synonyms: ["manic depression", "bipolar affective disorder"]}
+- {slug: schizophrenia, display: "Schizophrenia", system: psychiatric, urgency: 3, prior: 0.25, synonyms: ["schizophrenic disorder"]}
+- {slug: alcohol_use_disorder, display: "Alcohol use disorder", system: psychiatric, urgency: 2, prior: 1.6, synonyms: ["alcoholism", "alcohol dependence"]}
+- {slug: opioid_use_disorder, display: "Opioid use disorder", system: psychiatric, urgency: 3, prior: 0.7, synonyms: ["opioid dependence", "opiate addiction"]}
+- {slug: opioid_overdose, display: "Opioid overdose", system: psychiatric, urgency: 4, prior: 0.2, synonyms: ["narcotic overdose", "opiate overdose"]}
+- {slug: attention_deficit_disorder, display: "Attention deficit hyperactivity disorder", system: psychiatric, urgency: 1, prior: 1.4, synonyms: ["ADHD", "ADD"]}
+- {slug: preeclampsia, display: "Preeclampsia", system: obstetric, urgency: 4, prior: 0.2, synonyms: ["pre-eclampsia", "toxemia of pregnancy"]}
+- {slug: ectopic_pregnancy, display: "Ectopic pregnancy", system: obstetric, urgency: 4, prior: 0.1, synonyms: ["tubal pregnancy"]}
+- {slug: normal_pregnancy, display: "Normal pregnancy", system: obstetric, urgency: 1, prior: 1.2, synonyms: ["uncomplicated pregnancy", "gravid"]}
+- {slug: hyperemesis_gravidarum, display: "Hyperemesis gravidarum", system: obstetric, urgency: 3, prior: 0.1, synonyms: ["severe morning sickness"]}
+- {slug: heat_stroke, display: "Heat stroke", system: environmental, urgency: 4, prior: 0.06, synonyms: ["heatstroke", "hyperthermia"]}
+- {slug: carbon_monoxide_poisoning, display: "Carbon monoxide poisoning", system: environmental, urgency: 4, prior: 0.04, synonyms: ["CO poisoning"]}
+- {slug: acetaminophen_toxicity, display: "Acetaminophen toxicity", system: environmental, urgency: 4, prior: 0.08, synonyms: ["paracetamol overdose", "tylenol overdose"]}
