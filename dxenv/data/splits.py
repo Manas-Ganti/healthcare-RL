@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 import numpy as np
 
-from dxenv.data.corpus import PatientRecord
+from dxenv.data.corpus import PatientRecord, generate_corpus
 from dxenv.data.taxonomy import load_taxonomy
 
 _FROZEN_PATH: Final = Path(__file__).with_name("eval_split.json")
@@ -108,8 +109,16 @@ def make_splits(
     )
 
 
-def freeze_eval_split(splits: Splits, path: Path | None = None) -> str:
-    """Write the eval hash to disk. Call ONCE, then commit the file."""
+def freeze_eval_split(
+    splits: Splits, path: Path | None = None, provenance: dict[str, Any] | None = None
+) -> str:
+    """Write the eval hash to disk. Call ONCE, then commit the file.
+
+    `provenance` records how the corpus the split was cut from was produced -- generator
+    seed and size. Without it the frozen hash is unreproducible: it pins WHICH patients
+    are eval, but nothing says how to regenerate those patients, and a hash you cannot
+    recompute is a hash you will eventually be tempted to overwrite.
+    """
     p = path or _FROZEN_PATH
     digest = splits.eval_hash()
     p.write_text(
@@ -117,13 +126,53 @@ def freeze_eval_split(splits: Splits, path: Path | None = None) -> str:
             {
                 "eval_hash": digest,
                 "n_eval": len(splits.eval),
+                "n_train": len(splits.train),
+                "n_holdout": len(splits.holdout_modules),
                 "holdout_systems": list(splits.holdout_systems),
+                "provenance": provenance or {},
             },
             indent=2,
         )
         + "\n"
     )
     return digest
+
+
+def load_frozen_provenance(path: Path | None = None) -> dict[str, Any]:
+    """How to regenerate the corpus the frozen eval split was cut from."""
+    p = path or _FROZEN_PATH
+    if not p.exists():
+        raise SplitError(
+            f"{p} does not exist. Run scripts/freeze_eval_split.py and commit the result "
+            "before training; an unfrozen eval split is not an eval split [I12]."
+        )
+    frozen = json.loads(p.read_text())
+    prov = frozen.get("provenance") or {}
+    for key in ("corpus_n", "corpus_seed", "split_seed"):
+        if key not in prov:
+            raise SplitError(
+                f"{p} records no {key!r}. The frozen split cannot be reproduced, so it "
+                "cannot be verified either."
+            )
+    return dict(prov)
+
+
+def rebuild_frozen_splits(
+    path: Path | None = None,
+    generate: Callable[[int, int], list[PatientRecord]] | None = None,
+) -> Splits:
+    """Regenerate the corpus from recorded provenance and re-cut the frozen split.
+
+    Verified against the committed hash before it is returned, so a caller that gets a
+    `Splits` back knows it is THE eval split and not one that happens to look like it.
+    `generate` is injected only so tests can substitute a cheap corpus.
+    """
+    prov = load_frozen_provenance(path)
+    gen = generate or (lambda n, seed: generate_corpus(n, seed=seed))
+    records = gen(int(prov["corpus_n"]), int(prov["corpus_seed"]))
+    splits = make_splits(records, seed=int(prov["split_seed"]))
+    assert_eval_frozen(splits, path)
+    return splits
 
 
 def assert_eval_frozen(splits: Splits, path: Path | None = None) -> None:

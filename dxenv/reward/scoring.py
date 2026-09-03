@@ -21,6 +21,8 @@ Range, for n = 149:
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
@@ -143,3 +145,23 @@ def score_bounds(
     best = uniform_offset(n) * w_max
     worst = (uniform_offset(n) - 2.0) * w_max
     return worst, best
+
+
+def weighted_score_fn(
+    taxonomy: Taxonomy | None = None, severity: SeverityTable | None = None
+) -> Callable[[npt.NDArray[np.float64], int], float]:
+    """The terminal scoring rule as a `(report, true_idx) -> float` callable.
+
+    This is the function `env/bayes.py` takes as its injected `ScoreFn`, and it is what
+    every ceiling in the project is computed against. It exists so there is exactly ONE
+    severity-weighted scorer rather than a copy at each of the four call sites -- a copy
+    that drifts turns the ceiling from a bound into a number that resembles one.
+    """
+    tax = taxonomy or load_taxonomy()
+    sev = severity or load_severity()
+    weights = np.array([sev.weight(lab.urgency) for lab in tax.labels], dtype=np.float64)
+
+    def fn(report: npt.NDArray[np.float64], true_idx: int) -> float:
+        return brier_score(report, true_idx) * float(weights[true_idx])
+
+    return fn
