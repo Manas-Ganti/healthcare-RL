@@ -325,6 +325,42 @@ def test_group_shares_one_budget(trainer) -> None:
     assert len({r.budget for r in rollouts}) == 1
 
 
+def test_rollout_weights_are_synced_every_step(trainer) -> None:
+    """On-policy means the sampler must see the trained weights before the next batch.
+
+    Without a sync the rollouts keep coming from the reference policy while the trained
+    adapter drifts away from it. Nothing crashes: the run just stops being GRPO, and the
+    KL term grows for a reason that is very hard to find from the logs. This is the test
+    that would have caught it -- `sync_rollout_weights` existed on the protocol and on
+    both implementations, and nothing called it.
+    """
+    trainer.run(steps=3)
+    assert trainer.updater.syncs == 3
+    assert trainer.n_syncs == 3
+
+
+def test_sync_cadence_is_configurable_and_respected(trainer) -> None:
+    from dataclasses import replace
+
+    trainer.config = replace(trainer.config, sync_every=2)
+    trainer.run(steps=4)
+    assert trainer.updater.syncs == 2
+
+
+def test_torch_updater_refuses_to_sync_into_the_void() -> None:
+    """A sync with no backend would save to disk and push nothing. Fail, and fail early.
+
+    The check runs before the model load, so this is assertable without a GPU -- and more
+    to the point, a misconfigured sync costs a second rather than two minutes of loading
+    weights it is about to not use.
+    """
+    from dxenv.train.grpo import TorchLoRAUpdater, TrainingError
+
+    updater = TorchLoRAUpdater(config=GRPOConfig(), backend=None)
+    with pytest.raises(TrainingError, match="no backend to sync to"):
+        updater.sync_rollout_weights()
+
+
 def test_loop_is_deterministic_under_seed(tmp_path, fixture_corpus, episode_config,
                                           reward_config, taxonomy, catalog, obs_model) -> None:
     """[I10] Same seed, same run."""
