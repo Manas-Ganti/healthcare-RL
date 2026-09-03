@@ -340,6 +340,28 @@ KL uses the k3 estimator, `exp(r) − r − 1`. The naive difference is also unb
 negative on individual tokens, so the penalty occasionally *pays* the policy for leaving
 the reference — a small effect and a very odd one to debug.
 
+Three things in the GPU updater worth knowing before it runs, all of which would have
+failed **silently**:
+
+- **Rollout weights are synced every step.** `sync_rollout_weights` existed on the
+  protocol and both implementations and nothing called it; the vLLM `LoRARequest` also
+  pinned adapter id 1, which vLLM caches. Rollouts would have come from the frozen SFT
+  reference all run while the trained adapter drifted away — no crash, just a run that
+  quietly isn't GRPO.
+- **There is no separate reference model.** `get_peft_model` injects LoRA into the base
+  *in place*, so holding a reference to it aliases the modules the adapter now lives in —
+  the reference forward pass would run with the trainable adapter active and KL would read
+  0.000 forever. Reference logprobs come from `disable_adapter()`, which also means one
+  copy of the weights rather than two.
+- **The clipping is inert at one inner epoch.** `old_logp` is the batch's own detached
+  logprobs, so the ratio is identically 1 and this reduces to a plain policy gradient.
+  Correct single-epoch GRPO; `clip_eps` starts mattering the moment a second inner epoch
+  is added.
+
+`VLLMBackend.gpu_memory_utilization` defaults to 0.55, below vLLM's own default, because
+in a GRPO run the engine shares a device with the trainer and vLLM preallocates its KV
+cache at startup. Raise it for a standalone eval sweep.
+
 ---
 
 ## Persistence, and why it came first

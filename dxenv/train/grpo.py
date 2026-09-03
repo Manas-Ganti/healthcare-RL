@@ -462,7 +462,6 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
     """The rollout sampler, so trained weights can be pushed back to it every sync."""
 
     _model: Any = None
-    _ref: Any = None
     _tok: Any = None
     _opt: Any = None
 
@@ -484,12 +483,18 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
             self.config.model, dtype=torch.bfloat16, device_map="cuda"
         )
         if self.config.reference_adapter is not None:
-            # The SFT adapter is MERGED into the reference, not held as an adapter: the
-            # KL term must be measured against the policy GRPO started from, and an
-            # unmerged adapter would leave the reference as the base model.
+            # MERGED, not held as an adapter. The KL is measured against the policy GRPO
+            # started from; an unmerged adapter would leave the reference as the base
+            # model, and the run would be free to drift away from SFT for nothing.
             base = PeftModel.from_pretrained(base, str(self.config.reference_adapter))
             base = base.merge_and_unload()
-        self._ref = base
+        # There is NO separate reference model. `get_peft_model` injects the LoRA layers
+        # into `base` IN PLACE, so holding `self._ref = base` aliases the very modules
+        # the adapter now lives in -- the reference forward pass would run with the
+        # trainable adapter active, KL would be identically zero for the whole run, and
+        # nothing would say so. Reference logprobs come from `disable_adapter()` instead,
+        # which is also why this fits alongside a vLLM engine: one copy of the weights,
+        # not two.
         self._model = get_peft_model(
             base,
             LoraConfig(
@@ -534,10 +539,15 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         self._lazy()
         adv = torch.tensor([b.advantage for b in batch], device="cuda").unsqueeze(-1)
         logp, mask = self._completion_logprobs(self._model, batch)
-        with torch.no_grad():
-            ref_logp, _ = self._completion_logprobs(self._ref, batch)
-            old_logp = logp.detach()
+        with torch.no_grad(), self._model.disable_adapter():
+            ref_logp, _ = self._completion_logprobs(self._model, batch)
+        old_logp = logp.detach()
 
+        # One inner epoch, so `old_logp` is this batch's own detached logprobs and the
+        # ratio is identically 1 -- the clipping is INERT and this reduces to a plain
+        # policy gradient. That is correct single-epoch GRPO, and it is written out
+        # because the clip_eps knob otherwise looks like it is doing something. It starts
+        # doing something the moment a second inner epoch is added.
         ratio = torch.exp(logp - old_logp)
         surrogate = torch.min(
             ratio * adv,
