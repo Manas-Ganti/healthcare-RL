@@ -26,3 +26,10 @@ data/synthea_output/
 *.jsonl.gz
 .DS_Store
 
+
+# SLURM job logs. One file per job id, and a GRPO run writes 2000 step lines plus vLLM's
+# startup output -- committing them would pollute the repo and conflict on every pull.
+# The directory itself IS tracked (via .gitkeep) because SLURM refuses to launch a job
+# whose --output directory does not exist.
+slurm/logs/*
+!slurm/logs/.gitkeep
