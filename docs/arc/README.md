@@ -21,7 +21,30 @@ What this repo took from them, and where it landed:
 venvs, which sidesteps the activation failure entirely), `NCCL_SOCKET_IFNAME` (single-GPU
 here), and everything about the visual-reasoning task itself.
 
-**One discrepancy to resolve before the first submission.** `quickref.md` names the
-account `ece-6474-spring2026`; the live `quota` output on 2026-09-03 shows
-`ece-6554-fall2025` and `ece-6524-spring2026` and no `6474`. This repo's `.sbatch` files
-use `ece-6524-spring2026`. Confirm with `sacctmgr show assoc user=$USER` before queueing.
+## Verified on this cluster (2026-09-03)
+
+`sacctmgr` confirms all three accounts exist -- `ece-6474-*`, `ece-6524-*`, `ece-6554-*` --
+so the quickref and the `quota` output were never in conflict; the listing was just
+truncated. This repo uses `ece-6524-spring2026`, the allocation with hours already drawn.
+
+A100 QOS, confirmed:
+
+| QOS | priority | max wall |
+|---|---|---|
+| `tc_a100_normal_short` | **1500** | 1-00:00:00 |
+| `tc_a100_normal_int` | **1500** | 7-00:00:00 |
+| `tc_a100_normal_base` | 1000 | 7-00:00:00 |
+| `tc_a100_normal_long` | 500 | 14-00:00:00 |
+| `tc_a100_preemptable_base` | 0 | 30-00:00:00 |
+
+`short` and `int` share the top priority. Batch jobs use `short`; **interactive sessions
+need `tc_a100_normal_int`**, which carries the same priority with a 7-day cap:
+
+```bash
+interact --account=ece-6524-spring2026 --partition=a100_normal_q \
+         --qos=tc_a100_normal_int --gres=gpu:a100:1 \
+         --cpus-per-task=8 --mem=96G --time=01:00:00
+```
+
+Nothing should ever use `tc_a100_preemptable_base`: priority 0, and normal preempts
+preemptable.
