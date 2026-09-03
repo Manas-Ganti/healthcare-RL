@@ -62,11 +62,14 @@ def main() -> None:
         def factory(seed: int) -> LLMPolicy:
             return LLMPolicy(backend=RandomBackend(seed=seed), seed=seed)
     else:
-        updater = TorchLoRAUpdater(config=cfg)  # type: ignore[assignment]
         backend = VLLMBackend(
             model=args.model,
             lora_path=str(args.reference_adapter) if args.reference_adapter else None,
         )
+        # The updater needs the backend, not just the other way round: every sync pushes
+        # the trained adapter back to the sampler, and without that the rollouts keep
+        # coming from the reference policy for the whole run.
+        updater = TorchLoRAUpdater(config=cfg, backend=backend)  # type: ignore[assignment]
         def factory(seed: int) -> LLMPolicy:
             return LLMPolicy(backend=backend, temperature=args.temperature, seed=seed)
 

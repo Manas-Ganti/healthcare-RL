@@ -133,6 +133,11 @@ class VLLMBackend:
     dtype: str = "bfloat16"
     _engine: Any = field(default=None, init=False)
     _schema: dict[str, Any] = field(default_factory=action_json_schema, init=False)
+    _lora_version: int = field(default=1, init=False)
+    """Bumped on every reload. vLLM caches an adapter BY ID, so pushing new weights to a
+    path the engine has already loaded under id 1 is a no-op -- the engine keeps serving
+    the old adapter and nothing says so. That failure is silent and it turns a GRPO run
+    into rejection sampling against a frozen policy."""
 
     def _lazy_engine(self) -> Any:  # pragma: no cover - requires CUDA
         if self._engine is None:
@@ -176,7 +181,9 @@ class VLLMBackend:
         if self.lora_path is not None:
             from vllm.lora.request import LoRARequest
 
-            lora = LoRARequest("policy", 1, self.lora_path)
+            lora = LoRARequest(
+                f"policy-v{self._lora_version}", self._lora_version, self.lora_path
+            )
         outputs = engine.chat(
             [list(c) for c in conversations], params, lora_request=lora, use_tqdm=False
         )
@@ -192,6 +199,12 @@ class VLLMBackend:
             ]
             for o in outputs
         ]
+
+
+    def reload_lora(self, path: str) -> None:  # pragma: no cover - requires CUDA
+        """Point the sampler at freshly trained weights, under a NEW adapter id."""
+        self.lora_path = path
+        self._lora_version += 1
 
 
 @dataclass(slots=True)

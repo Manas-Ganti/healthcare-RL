@@ -86,6 +86,15 @@ class GRPOConfig:
 
     monitor_every: int = 10
     save_every: int = 100
+    sync_every: int = 1
+    """Steps between pushing the trained adapter back to the rollout sampler.
+
+    1, because GRPO is on-policy: the advantages are only valid for the policy that
+    produced the rollouts. Raising this trades correctness for throughput -- at
+    sync_every=N the loop is doing N steps of off-policy updates against a stale sampler,
+    which the clipped surrogate tolerates for small N and silently degrades for large
+    ones. Set it deliberately, and watch the KL when you do.
+    """
     ceiling_tolerance: float = 1e-6
     stage_window: int = 20
     """Steps of mean reward a stage is judged on before it may advance. One step is
@@ -143,8 +152,10 @@ class NullUpdater:
             "mean_abs_advantage": float(np.abs(adv).mean()) if len(adv) else 0.0,
         }
 
+    syncs: int = 0
+
     def sync_rollout_weights(self) -> None:
-        return None
+        self.syncs += 1
 
     def save(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
@@ -247,6 +258,7 @@ class GRPOTrainer:
         self.stage_rewards: list[float] = []
         self.history: list[StepReport] = []
         self.step_index = 0
+        self.n_syncs = 0
 
         assert self.ctx.reward_config is not None
         self.meta = RunMeta(
@@ -362,6 +374,13 @@ class GRPOTrainer:
 
         if self.step_index % cfg.monitor_every == 0:
             self.assert_monitors()
+        if self.step_index % cfg.sync_every == 0:
+            # Push the updated adapter to the sampler. Without this the rollouts keep
+            # coming from the reference policy while the trained weights drift away from
+            # it -- no crash, no error, just a run that is no longer GRPO and a KL term
+            # that grows for a reason nobody can find.
+            self.updater.sync_rollout_weights()
+            self.n_syncs += 1
         self.maybe_advance_stage()
         return report
 
@@ -439,6 +458,9 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
     """
 
     config: GRPOConfig
+    backend: Any = None
+    """The rollout sampler, so trained weights can be pushed back to it every sync."""
+
     _model: Any = None
     _ref: Any = None
     _tok: Any = None
@@ -541,8 +563,24 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         }
 
     def sync_rollout_weights(self) -> None:
-        """Push the updated adapter to disk so the vLLM engine can reload it."""
-        self.save(self.config.root / self.config.run_id / "current")
+        """Save the adapter and tell the sampler to reload it under a new id.
+
+        Writing the file is not enough on its own: vLLM caches an adapter by id, so a
+        reload that reuses the id keeps serving the old weights silently. `backend` is
+        wired in by the training script; leaving it None makes the save a no-op push and
+        is logged as such rather than passing quietly.
+        """
+        # Checked BEFORE save(), which triggers the 7B load. A misconfigured sync should
+        # cost a second, not two minutes of loading weights it is about to not use.
+        if self.backend is None:
+            raise TrainingError(
+                "TorchLoRAUpdater has no backend to sync to, so the rollout sampler would "
+                "keep serving the reference policy for the whole run. Pass the "
+                "VLLMBackend when constructing the updater."
+            )
+        path = self.config.root / self.config.run_id / "current"
+        self.save(path)
+        self.backend.reload_lora(str(path))
 
     def save(self, path: Path) -> None:
         self._lazy()
