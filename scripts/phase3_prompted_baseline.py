@@ -127,20 +127,36 @@ def main() -> None:
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--seed", type=int, default=20260903)
     ap.add_argument("--temperature", type=float, default=1.0)
-    ap.add_argument("--model", default=None, help="HF id; omit to skip the prompted row")
-    ap.add_argument("--out", type=Path, default=Path("runs/phase3/prompted_baseline.json"))
+    ap.add_argument("--model", default=None, help="HF id; omit to skip the model row")
+    ap.add_argument("--lora", type=Path, default=None,
+                    help="SFT adapter. With it the model row is named `sft` rather than "
+                         "`prompted`, because the two runs answer different questions.")
+    ap.add_argument("--gpu-memory-utilization", type=float, default=0.85,
+                    help="0.85 suits this standalone sweep, where nothing shares the "
+                         "card. VLLMBackend defaults lower for the co-located GRPO run.")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="defaults to prompted_baseline.json, or sft_baseline.json "
+                         "with --lora, so the pre-SFT measurement is not overwritten")
     args = ap.parse_args()
+
+    # The row is named for WHICH question this run answers. Before SFT: "can the base
+    # model do this at all, and is SFT even needed" (CLAUDE.md 8.1). After SFT: "did SFT
+    # help without destroying the calibration and the diversity GRPO needs" -- which is
+    # Gate B proper, the go/no-go into Phase 4. Same script, same thresholds, two
+    # different decisions, and the results must not overwrite each other.
+    subject_name = "sft" if args.lora else "prompted"
+    out = args.out or Path(f"runs/phase3/{'sft' if args.lora else 'prompted'}_baseline.json")
 
     records = generate_corpus(args.n, seed=args.seed)
     ctx = RolloutContext()
     assert ctx.reward_config is not None
     meta = RunMeta(
-        run_id="phase3_prompted",
+        run_id=f"phase3_{subject_name}",
         env_config_hash=load_episode_config().hash(),
         reward_config_hash=ctx.reward_config.hash(),
         menu_fingerprint=build_menu().fingerprint(),
         taxonomy_hash=load_taxonomy().hash(),
-        phase="phase3_prompted_baseline",
+        phase=f"phase3_{subject_name}_baseline",
         policy="mixed",
         notes={"n": args.n, "k": args.k, "seed": args.seed},
     )
@@ -160,20 +176,25 @@ def main() -> None:
             records, args.k, ctx, store, 4,
         ))
         if args.model:
-            backend = VLLMBackend(model=args.model)
+            backend = VLLMBackend(
+                model=args.model,
+                lora_path=str(args.lora) if args.lora else None,
+                gpu_memory_utilization=args.gpu_memory_utilization,
+            )
             rows.append(evaluate(
-                "prompted",
+                subject_name,
                 lambda s: LLMPolicy(backend=backend, temperature=args.temperature, seed=s),
                 records, args.k, ctx, store, 5,
             ))
 
     floor = next(r for r in rows if r["policy"] == "prior")["mean_reward"]
     bar = next(r for r in rows if r["policy"] == "vitals_bayes")["mean_reward"]
-    subject = next((r for r in rows if r["policy"] == "prompted"),
+    subject = next((r for r in rows if r["policy"] == subject_name),
                    next(r for r in rows if r["policy"] == "random_schema"))
     payload = {
         "n": args.n, "k": args.k, "seed": args.seed, "temperature": args.temperature,
         "model": args.model,
+        "lora": str(args.lora) if args.lora else None,
         "blank_record_floor": floor,
         "gate_b_pass_bar": bar,
         # Hoisted from the subject row so the gate checker reads one place. The subject is
@@ -185,15 +206,15 @@ def main() -> None:
         "schema_valid_fraction": subject["schema_valid_fraction"],
         "rows": rows,
     }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(payload, indent=2) + "\n")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2) + "\n")
 
     print(f"{'policy':<16}{'mean R':>10}{'best@k':>10}{'grp std':>10}{'tests':>8}")
     for r in rows:
         print(f"{r['policy']:<16}{r['mean_reward']:>+10.3f}{r['mean_best_of_k']:>+10.3f}"
               f"{r['mean_group_std']:>10.3f}{r['mean_tests']:>8.2f}")
     print(f"\nblank-record floor {floor:+.3f}; Gate B pass bar (vitals-only Bayes) {bar:+.3f}")
-    print(f"wrote {args.out}")
+    print(f"wrote {out}")
 
 
 if __name__ == "__main__":
