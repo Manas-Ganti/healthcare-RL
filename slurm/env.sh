@@ -2,52 +2,76 @@
 # Shared environment. Sourced by every job script AFTER it has located the repo root.
 #
 # Deliberately does NOT set -e and does NOT cd. Both used to live here, and when this file
-# failed to load -- which is exactly what happens if the job was submitted from the wrong
+# failed to load -- which is what happens if the job was submitted from the wrong
 # directory -- the calling script lost its error handling at the same moment it lost its
-# environment, and then reported success. Each job script now sets -e itself, before
-# anything can fail.
+# environment, and then reported success. Each job script sets -e itself, first.
 
-# Scratch. A 7B checkpoint is ~15GB and the HF cache fills a home quota on first download,
-# so nothing model-shaped is allowed to land in $HOME.
-export DXENV_SCRATCH="${DXENV_SCRATCH:-/projects/$USER/dxenv}"
-export HF_HOME="$DXENV_SCRATCH/hf"
+# Scratch. HOME, not /projects: on ARC /projects is per-ALLOCATION and not writable by an
+# individual user, while home is 640GB (409GB used as of 2026-09-03, so ~230GB free) --
+# comfortably more than the ~15GB a 7B checkpoint needs. This mirrors what the sibling
+# project on this cluster settled on; see docs/arc/runbook.md.
+export DXENV_SCRATCH="${DXENV_SCRATCH:-$HOME/dxenv}"
+export HF_HOME="${HF_HOME:-$DXENV_SCRATCH/hf}"
 export HF_HUB_ENABLE_HF_TRANSFER=1
-export TRANSFORMERS_CACHE="$HF_HOME/transformers"
 export TORCHINDUCTOR_CACHE_DIR="$DXENV_SCRATCH/inductor"
 export OUTLINES_CACHE_DIR="$DXENV_SCRATCH/outlines"
+
 if ! mkdir -p "$HF_HOME" "$DXENV_SCRATCH" 2>/dev/null; then
-    cat >&2 <<MSG
-DXENV_SCRATCH=$DXENV_SCRATCH is not writable.
-
-The default (/projects/\$USER/dxenv) is a guess at your project space. Point it at real
-scratch and re-submit:
-
-    export DXENV_SCRATCH=/path/to/your/project/space/dxenv
-
-This has to be somewhere with room: the model cache alone is ~15GB for a 7B checkpoint,
-and it must not be a home directory with a quota.
-MSG
+    echo "DXENV_SCRATCH=$DXENV_SCRATCH is not writable. Set it to somewhere with ~20GB." >&2
     exit 1
 fi
 
 # Set by each job script's bootstrap, which walks up from $SLURM_SUBMIT_DIR.
 export DXENV_REPO="${DXENV_REPO:-$PWD}"
 export DXENV_MODEL="${DXENV_MODEL:-Qwen/Qwen2.5-7B-Instruct}"
-# Rollout stores go to scratch: a long run writes hundreds of MB of JSONL, and they are
-# the expensive artifact, so they must not sit somewhere with a quota.
 export DXENV_RUNS="${DXENV_RUNS:-$DXENV_SCRATCH/runs}"
 mkdir -p "$DXENV_RUNS"
 
-# ARC uses Lmod. Adjust the versions to whatever `module spider python cuda` reports.
-module reset >/dev/null 2>&1 || true
-module load Python/3.11.5 2>/dev/null || module load python/3.11 2>/dev/null || true
-module load CUDA/12.4.0 2>/dev/null || module load cuda/12.4 2>/dev/null || true
-source "$DXENV_REPO/.venv/bin/activate"
+# Which virtualenv. vLLM and TRL cannot coexist (see pyproject.toml), so there are two:
+#   .venv        infer  -- rollouts, Gate B, gpu_smoke, GRPO
+#   .venv-train  train  -- SFT only
+export DXENV_VENV="${DXENV_VENV:-$DXENV_REPO/.venv}"
 
-# Telegram credentials, if configured. Kept OUTSIDE the repo on purpose: this repo is
-# public, and a committed bot token is a live credential, not a config value.
-# See scripts/notify.py for how to obtain the token and chat id.
-# shellcheck source=/dev/null
-[[ -f "$HOME/.config/dxenv/telegram.env" ]] && source "$HOME/.config/dxenv/telegram.env"
+module reset >/dev/null 2>&1 || true
+
+# --- interpreter, asserted -------------------------------------------------------------
+# The sibling project lost a full node allocation to this class of bug twice: `source
+# activate` reporting success in a non-interactive batch shell without switching
+# interpreters, and separately a zero-byte python that exited 0 and printed nothing, so a
+# GPU job "succeeded" in two seconds with an empty log. Neither failed loudly anywhere.
+#
+# So: an absolute path, put on PATH directly rather than activated, and then ASSERTED --
+# both that the interpreter runs at all and that it is the one intended.
+export PY="$DXENV_VENV/bin/python"
+if [[ ! -x "$PY" ]]; then
+    echo "no interpreter at $PY -- run slurm/setup_cpu.sh first" >&2
+    exit 1
+fi
+export PATH="$DXENV_VENV/bin:$PATH"
+if ! "$PY" -c "
+import sys, pathlib
+# sys.prefix, NOT the resolved sys.executable: .venv/bin/python is a symlink to the base
+# interpreter, so resolving it reports the base install and the check fails on a perfectly
+# good venv. sys.prefix is the venv root and is what actually distinguishes them.
+want = pathlib.Path('$DXENV_VENV')
+have = pathlib.Path(sys.prefix)
+assert want.samefile(have), f'sys.prefix is {have}, expected {want}'
+print(f'[dxenv] python={sys.executable} ({sys.version.split()[0]}) prefix={have}')
+"; then
+    echo "interpreter check FAILED for $PY. A python that prints nothing and exits 0 is a" >&2
+    echo "zero-byte or broken install -- rebuild the venv rather than debugging the job." >&2
+    exit 1
+fi
+# ---------------------------------------------------------------------------------------
+
+# Telegram credentials, if configured. Kept OUTSIDE the repo: this repo is public, and a
+# committed bot token is a live credential rather than a config value. ~/.config/vrr is
+# checked too, because a sibling project on this cluster already put a token there and
+# there is no reason to make you create a second bot.
+for _sec in "$HOME/.config/dxenv/telegram.env" "$HOME/.config/vrr/secrets.env"; do
+    # shellcheck source=/dev/null
+    [[ -f "$_sec" ]] && source "$_sec"
+done
+unset _sec
 # shellcheck source=/dev/null
 source "$DXENV_REPO/slurm/notify.sh"

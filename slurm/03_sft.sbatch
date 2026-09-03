@@ -1,16 +1,32 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=dxenv-sft
+#SBATCH --account=ece-6524-spring2026
 #SBATCH --partition=a100_normal_q
-#SBATCH --account=CHANGE_ME
-#SBATCH --gres=gpu:1
+#SBATCH --qos=tc_a100_normal_short
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
-#SBATCH --time=08:00:00
+#SBATCH --mem=96G
+#SBATCH --time=12:00:00
+#SBATCH --mail-user=manasganti@vt.edu
+#SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm/logs/sft-%j.out
-
-# Run this ONLY if 02_gate_b said the base model cannot sample the behaviour. Deliberately
-# undertrained: 1 epoch, low LR, LoRA. A model sharpened onto its SFT set produces
-# identical rollouts, and identical rollouts give GRPO zero advantage to work with.
+#
+# FLAGS THAT ARE LOAD-BEARING, not boilerplate (docs/arc/runbook.md 5):
+#
+#   --qos       the single biggest lever on this cluster. Adding it took a sibling job's
+#               priority from 1330 to 2312 and its pend reason from Priority to Resources.
+#               "short" is misleading: it caps at a FULL DAY and has the highest priority.
+#               Only a >24h run needs *_base. Verify the A100 names once with
+#                   sacctmgr show qos format=name%28,priority,maxwall
+#   --mem       explicit, NEVER 0. --mem=0 means all memory on the node, which can only be
+#               satisfied where nobody holds a byte, so a small job can never backfill.
+#   --gres      typed (gpu:a100:1). A100 is 80GB, H200 is 141GB; for H200 use
+#               --partition=h200_normal_q --qos=tc_h200_normal_short --gres=gpu:h200:1.
+#   --account   from `quota`. Do NOT use *_preemptable_q: normal preempts preemptable,
+#               so moving there makes you the preemptee.
+#
+# #SBATCH directives cannot read environment variables, and sbatch copies this file at
+# SUBMIT time -- a pending job will not pick up edits made after it was queued.
 
 # --- bootstrap -------------------------------------------------------------------
 # set -e HERE, not in env.sh. The first version put it there, and when env.sh failed to
@@ -32,10 +48,15 @@ if [[ ! -f "$DXENV_ROOT/pyproject.toml" ]]; then
 fi
 cd "$DXENV_ROOT"
 export DXENV_REPO="$DXENV_ROOT"
+# SFT is the ONE stage that needs TRL, and TRL cannot share an environment with vLLM
+# (see pyproject.toml). Selected BEFORE env.sh, which asserts the interpreter.
+export DXENV_VENV="${DXENV_VENV:-$DXENV_ROOT/.venv-train}"
 echo "repo root: $DXENV_ROOT"
 source slurm/env.sh
 # ---------------------------------------------------------------------------------
 dxenv_notify_on_exit "SFT"
+
+pip install -q -e ".[dev,train]"
 
 python scripts/build_sft_data.py --n 2000 --frozen-split --out runs/phase3/sft.jsonl
 

@@ -1,23 +1,32 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=dxenv-gpucheck
-#SBATCH --partition=a100_normal_q       # check: sinfo -o "%P %G %l"
-#SBATCH --account=CHANGE_ME             # check: sacctmgr show assoc user=$USER
-#SBATCH --gres=gpu:1
+#SBATCH --account=ece-6524-spring2026
+#SBATCH --partition=a100_normal_q
+#SBATCH --qos=tc_a100_normal_short
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=00:30:00
+#SBATCH --mem=96G
+#SBATCH --time=01:00:00
+#SBATCH --mail-user=manasganti@vt.edu
+#SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm/logs/gpucheck-%j.out
-
-# Installs the GPU stack, then drives ONE episode through it end to end.
 #
-# Short and cheap on purpose. None of the GPU code in this repo has ever executed, and the
-# parts most likely to have rotted are vLLM's guided-decoding API (the import path for
-# GuidedDecodingParams, and whether SamplingParams still takes `guided_decoding`) and the
-# signature of LLM.chat(). An import check would not touch any of that -- it would pass,
-# and the first real exercise would then be inside the four-hour Gate B job.
+# FLAGS THAT ARE LOAD-BEARING, not boilerplate (docs/arc/runbook.md 5):
 #
-# So this loads a small model and generates one constrained action. If the API has moved,
-# it fails here, in minutes, with a traceback.
+#   --qos       the single biggest lever on this cluster. Adding it took a sibling job's
+#               priority from 1330 to 2312 and its pend reason from Priority to Resources.
+#               "short" is misleading: it caps at a FULL DAY and has the highest priority.
+#               Only a >24h run needs *_base. Verify the A100 names once with
+#                   sacctmgr show qos format=name%28,priority,maxwall
+#   --mem       explicit, NEVER 0. --mem=0 means all memory on the node, which can only be
+#               satisfied where nobody holds a byte, so a small job can never backfill.
+#   --gres      typed (gpu:a100:1). A100 is 80GB, H200 is 141GB; for H200 use
+#               --partition=h200_normal_q --qos=tc_h200_normal_short --gres=gpu:h200:1.
+#   --account   from `quota`. Do NOT use *_preemptable_q: normal preempts preemptable,
+#               so moving there makes you the preemptee.
+#
+# #SBATCH directives cannot read environment variables, and sbatch copies this file at
+# SUBMIT time -- a pending job will not pick up edits made after it was queued.
 
 # --- bootstrap -------------------------------------------------------------------
 # set -e HERE, not in env.sh. The first version put it there, and when env.sh failed to
@@ -44,7 +53,7 @@ source slurm/env.sh
 # ---------------------------------------------------------------------------------
 dxenv_notify_on_exit "GPU check"
 
-pip install -e ".[dev,gpu]"
+pip install -e ".[dev,infer]"
 
 echo "=== 1. does the stack import, and can torch see the GPU? ==="
 python - <<'PY'
@@ -53,13 +62,15 @@ print("torch", torch.__version__, "| cuda available:", torch.cuda.is_available()
 assert torch.cuda.is_available(), (
     "torch cannot see the GPU. Usually a CPU-only wheel pulled in by the resolver. "
     "Fix: pip uninstall -y torch && pip install vllm  (let vLLM pick its torch), "
-    "then pip install -e '.[dev,gpu]'"
+    "then pip install -e '.[dev,infer]'"
 )
 print("device:", torch.cuda.get_device_name(0))
 print("memory:", round(torch.cuda.get_device_properties(0).total_memory / 2**30), "GiB")
-import peft, transformers, trl, vllm
+# NOT trl -- it lives in the train env and importing it here would be the exact
+# cross-environment mistake that cost a sibling project a full node allocation.
+import peft, transformers, vllm
 print("vllm", vllm.__version__, "| transformers", transformers.__version__,
-      "| peft", peft.__version__, "| trl", trl.__version__)
+      "| peft", peft.__version__)
 PY
 
 echo

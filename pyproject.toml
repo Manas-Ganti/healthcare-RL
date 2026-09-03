@@ -23,19 +23,40 @@ dev = [
     "jsonschema>=4.21",
 ]
 
-# GPU-only. Nothing above dxenv/policy/llm.py and dxenv/train/grpo.py imports any of it,
-# and both import lazily, so the whole invariant suite runs on a laptop. Install this on
-# the CUDA host that runs rollouts and gradient steps, not on the machine you develop on.
-gpu = [
+# GPU extras, deliberately SPLIT IN TWO. They cannot be installed together.
+#
+# vLLM pins transformers near 4.51; TRL needs >=4.56. Crossing them fails at import,
+# ~20 minutes into a job holding a full node:
+#
+#     ImportError: cannot import name 'is_trackio_available' from 'transformers'
+#     RuntimeError: Failed to import trl.trainer.sft_trainer
+#
+# That is a documented, already-paid-for failure on this cluster (docs/arc/runbook.md 3).
+# Do not try to unify them.
+#
+# The split works because the two paths need different things: rollouts and GRPO need
+# vLLM plus raw torch/peft for the gradient step, and only SFT needs TRL's SFTTrainer.
+#
+#   infer  -- rollouts, Gate B, gpu_smoke, and the GRPO loop  -> .venv
+#   train  -- SFT only (policy.sft.train_lora)                -> .venv-train
+#
+# Nothing above dxenv/policy/llm.py and dxenv/train/grpo.py imports either, and both
+# import lazily, so the whole invariant suite runs on a laptop with neither installed.
+infer = [
     "torch>=2.4",
-    "transformers>=4.44",
-    "accelerate>=0.33",
-    "peft>=0.12",
-    "trl>=0.11",
-    "datasets>=2.20",
     "vllm>=0.6",
-    "xgrammar>=0.1",
-    "bitsandbytes>=0.43",
+    "peft>=0.12",
+    "accelerate>=0.33",
+    "transformers",       # deliberately unpinned: let vLLM's resolver choose
+]
+
+train = [
+    "torch>=2.4",
+    "transformers>=4.56",
+    "trl>=0.11",
+    "peft>=0.12",
+    "accelerate>=0.33",
+    "datasets>=2.20",
 ]
 
 [build-system]

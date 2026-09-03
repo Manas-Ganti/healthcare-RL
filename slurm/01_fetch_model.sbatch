@@ -1,15 +1,30 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=dxenv-fetch
+#SBATCH --account=ece-6524-spring2026
 #SBATCH --partition=normal_q
-#SBATCH --account=CHANGE_ME
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=01:00:00
+#SBATCH --mail-user=manasganti@vt.edu
+#SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm/logs/fetch-%j.out
-
-# Pre-download the weights into scratch. Separate from the GPU jobs because it needs
-# internet and not a GPU, and because on clusters where compute nodes are network-isolated
-# a training job that tries to download will simply hang until the wall clock kills it.
+#
+# FLAGS THAT ARE LOAD-BEARING, not boilerplate (docs/arc/runbook.md 5):
+#
+#   --qos       the single biggest lever on this cluster. Adding it took a sibling job's
+#               priority from 1330 to 2312 and its pend reason from Priority to Resources.
+#               "short" is misleading: it caps at a FULL DAY and has the highest priority.
+#               Only a >24h run needs *_base. Verify the A100 names once with
+#                   sacctmgr show qos format=name%28,priority,maxwall
+#   --mem       explicit, NEVER 0. --mem=0 means all memory on the node, which can only be
+#               satisfied where nobody holds a byte, so a small job can never backfill.
+#   --gres      typed (gpu:a100:1). A100 is 80GB, H200 is 141GB; for H200 use
+#               --partition=h200_normal_q --qos=tc_h200_normal_short --gres=gpu:h200:1.
+#   --account   from `quota`. Do NOT use *_preemptable_q: normal preempts preemptable,
+#               so moving there makes you the preemptee.
+#
+# #SBATCH directives cannot read environment variables, and sbatch copies this file at
+# SUBMIT time -- a pending job will not pick up edits made after it was queued.
 
 # --- bootstrap -------------------------------------------------------------------
 # set -e HERE, not in env.sh. The first version put it there, and when env.sh failed to

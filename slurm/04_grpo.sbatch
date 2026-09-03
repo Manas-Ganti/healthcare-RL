@@ -1,21 +1,32 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=dxenv-grpo
+#SBATCH --account=ece-6524-spring2026
 #SBATCH --partition=a100_normal_q
-#SBATCH --account=CHANGE_ME
-#SBATCH --gres=gpu:1
+#SBATCH --qos=tc_a100_normal_short
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=192G
+#SBATCH --mem=128G
 #SBATCH --time=24:00:00
+#SBATCH --mail-user=manasganti@vt.edu
+#SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm/logs/grpo-%j.out
-
-# RESUMABLE. A 2000-step run does not fit in one allocation, so resubmit this until it
-# reports that --steps has been reached. Each job restores the step index, curriculum
-# stage, RNG and monitor windows from trainer_state.json; the trajectory store is
-# append-only and needs nothing.
 #
-# Do not submit this until Gate B has a verdict. The gate's own pre-registered failure
-# action says not to, and it is the instruction that exists to stop a node being spent on
-# a run that cannot teach the model anything.
+# FLAGS THAT ARE LOAD-BEARING, not boilerplate (docs/arc/runbook.md 5):
+#
+#   --qos       the single biggest lever on this cluster. Adding it took a sibling job's
+#               priority from 1330 to 2312 and its pend reason from Priority to Resources.
+#               "short" is misleading: it caps at a FULL DAY and has the highest priority.
+#               Only a >24h run needs *_base. Verify the A100 names once with
+#                   sacctmgr show qos format=name%28,priority,maxwall
+#   --mem       explicit, NEVER 0. --mem=0 means all memory on the node, which can only be
+#               satisfied where nobody holds a byte, so a small job can never backfill.
+#   --gres      typed (gpu:a100:1). A100 is 80GB, H200 is 141GB; for H200 use
+#               --partition=h200_normal_q --qos=tc_h200_normal_short --gres=gpu:h200:1.
+#   --account   from `quota`. Do NOT use *_preemptable_q: normal preempts preemptable,
+#               so moving there makes you the preemptee.
+#
+# #SBATCH directives cannot read environment variables, and sbatch copies this file at
+# SUBMIT time -- a pending job will not pick up edits made after it was queued.
 
 # --- bootstrap -------------------------------------------------------------------
 # set -e HERE, not in env.sh. The first version put it there, and when env.sh failed to
