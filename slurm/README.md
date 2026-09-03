@@ -92,6 +92,36 @@ use `sbatch --chdir=/path/to/healthcare-RL slurm/02_gate_b.sbatch`.
 The logs themselves are gitignored; `slurm/logs/.gitkeep` is committed so the directory
 survives a clone.
 
+## Cluster facts this is built around
+
+From `docs/arc/`, written for a sibling project on the same hardware. Each was paid for
+with a wasted allocation:
+
+- **vLLM and TRL cannot share an environment.** vLLM pins transformers ~4.51; TRL needs
+  >=4.56. Hence two venvs (`.venv` for inference/GRPO, `.venv-train` for SFT) and two
+  extras (`[infer]`, `[train]`). Do not try to unify them.
+- **`--qos` is the biggest scheduling lever.** Adding it moved a sibling job from priority
+  1330 to 2312. "short" caps at a full day and has the highest priority; only a >24h run
+  needs `*_base`.
+- **Never `--mem=0`** on a small job -- it means all node memory and can only be satisfied
+  on a wholly idle node, so it can never backfill.
+- **`/projects` is per-allocation**, not per-user, and not writable by you. Home is 640GB
+  with ~230GB free, which is where `DXENV_SCRATCH` points.
+- **Assert the interpreter.** `source activate` can report success without switching
+  interpreters, and a zero-byte python exits 0 printing nothing -- a GPU job then
+  "succeeds" in two seconds with an empty log. `env.sh` checks `sys.prefix` before any
+  work happens.
+
+**Verify these two before the first submission**, because this repo guesses at them:
+
+```bash
+sacctmgr show assoc user=$USER format=account,partition    # --account
+sacctmgr show qos format=name%28,priority,maxwall | grep a100
+```
+
+The headers currently say `--account=ece-6524-spring2026` and
+`--qos=tc_a100_normal_short`.
+
 ## Order
 
 ```bash
