@@ -147,6 +147,15 @@ python scripts/train_grpo.py --reference-adapter runs/sft/final --steps 2000
 python scripts/rescore.py runs/grpo --corpus-n 20000 --corpus-seed 20260901
 ```
 
+## Running on a cluster
+
+`slurm/` has job scripts for a SLURM cluster (written against Virginia Tech ARC), plus
+notes on the three things a scheduler changes: GPUs are allocated rather than present, so
+the CPU install and the whole test suite run on the login node; jobs have a wall clock, so
+a long GRPO run is a *chain* of jobs and `train_grpo.py --resume` restores the step index,
+curriculum stage, RNG and monitor windows between them; and home directories have quotas,
+so `HF_HOME` and the rollout stores point at scratch. See [`slurm/README.md`](slurm/README.md).
+
 ---
 
 ## Status
