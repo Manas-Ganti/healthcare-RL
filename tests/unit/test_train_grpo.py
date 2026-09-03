@@ -460,7 +460,7 @@ def test_resume_refuses_across_a_reward_config_change(trainer) -> None:
 
 def test_checkpoint_survives_a_halted_run(trainer, monkeypatch) -> None:
     """A wall-clock kill or a tripped monitor must still leave something to resume from."""
-    import dxenv.train.grpo as grpo
+    from dxenv.train import grpo
 
     trainer.run(steps=2)
 
