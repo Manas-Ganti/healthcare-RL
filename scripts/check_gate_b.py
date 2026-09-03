@@ -36,7 +36,9 @@ def skipped(name: str, detail: str) -> dict[str, Any]:
 def evaluate(results: dict[str, Any], gate: dict[str, Any]) -> list[dict[str, Any]]:
     t = gate["thresholds"]
     rows = {r["policy"]: r for r in results["rows"]}
-    subject = rows.get("prompted") or rows.get("random_schema")
+    # `sft` is the row Gate B is really about: the pre-SFT `prompted` run answers "is
+    # SFT needed", the post-SFT run answers "may we start GRPO".
+    subject = rows.get("sft") or rows.get("prompted") or rows.get("random_schema")
     if subject is None:
         raise SystemExit("results contain neither a `prompted` nor a `random_schema` row")
     bar = float(results["gate_b_pass_bar"])
@@ -131,7 +133,7 @@ def main() -> None:
               "evaluated from this results file. A partial gate is not a gate.")
     else:
         print(f"\nGATE B: {'PASS' if not fails else 'FAIL'}")
-    if subject != "prompted":
+    if subject not in ("prompted", "sft"):
         print(
             f"\nNOTE: the subject is `{subject}`, not a prompted model. That row measures "
             "the floor a prompted model has to beat -- a grammar with no policy behind it "

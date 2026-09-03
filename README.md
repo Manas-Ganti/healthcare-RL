@@ -57,18 +57,32 @@ python scripts/regenerate_golden.py                       # deliberately, then r
 On a CUDA host (`pip install -e ".[gpu]"`), the Phase 3 → 4 path:
 
 ```bash
-# 8.1 first: does the prompted model clear the floor with spread? This decides whether
-# SFT is needed at all. Without --model it reports the model-free floor instead.
+# 8.1 -- BEFORE any SFT. Does the base model clear the bar with spread? This decides
+# whether SFT is needed at all. Without --model it reports the model-free floor instead.
 python scripts/phase3_prompted_baseline.py --n 200 --k 8 --model Qwen/Qwen2.5-7B-Instruct
-python scripts/check_gate_b.py
+python scripts/check_gate_b.py --results runs/phase3/prompted_baseline.json
 
 # only if 8.1 says SFT is needed:
 python scripts/build_sft_data.py --n 2000 --frozen-split --out runs/phase3/sft.jsonl
+#   ... train the LoRA (policy.sft.train_lora) ...
+
+# Gate B PROPER -- the same measurement, now on the SFT'd policy. This is the go/no-go
+# into Phase 4, and it writes to sft_baseline.json so the pre-SFT run is not overwritten.
+python scripts/phase3_prompted_baseline.py --n 200 --k 8 \
+    --model Qwen/Qwen2.5-7B-Instruct --lora runs/sft/final
+python scripts/check_gate_b.py --results runs/phase3/sft_baseline.json
 
 python scripts/train_grpo.py --dry-run --steps 20        # real rollouts, no gradient
 python scripts/train_grpo.py --reference-adapter runs/sft/final --steps 2000
 python scripts/rescore.py runs/grpo --corpus-n 20000 --corpus-seed 20260901
 ```
+
+The same sweep runs twice because it answers two different questions. Before SFT: *can
+the base model do this at all?* After SFT: *did SFT help without destroying what GRPO
+needs?* Two of Gate B's criteria — calibration survived, and within-group variance — are
+essentially free passes on a base model and only bite on the second run, because SFT is
+what destroys calibration (one-hot targets) and what collapses diversity (over-training).
+They are there to catch SFT damage specifically.
 
 ```python
 from dxenv.data.corpus import generate_corpus
