@@ -57,28 +57,47 @@ def git_sha() -> str:
     return out.stdout.strip() or "unknown"
 
 
+IDENTITY_FIELDS: Final = (
+    "run_id", "env_config_hash", "reward_config_hash", "menu_fingerprint", "taxonomy_hash",
+)
+"""The fields that must match for two writes to belong to the same run.
+
+`created_utc`, `notes` and `git_sha` deliberately are not: resuming a run after a
+docstring fix is normal, resuming it after the cost table changed is not.
+"""
+
+
 @dataclass(frozen=True, slots=True)
 class RunMeta:
     """Everything needed to interpret a run's episodes, and to refuse to mix two runs."""
 
     run_id: str
     env_config_hash: str
+    """The run's PRIMARY env config. Lines may also carry any hash in `env_config_hashes`."""
+
     reward_config_hash: str
     menu_fingerprint: str
     taxonomy_hash: str
+    env_config_hashes: tuple[str, ...] = ()
+    """Every env config this run is DECLARED to emit, beyond the primary one.
+
+    A curriculum changes `max_turns` between stages, which changes the episode config
+    hash, so a single run legitimately writes lines under several. The guard below is
+    membership in this declared set rather than equality with the primary -- declaring
+    them up front keeps the check able to reject a genuinely foreign config, which
+    downgrading it to a warning would not. Anything not declared is a bug: it means an
+    episode was generated under a configuration nobody at this run's start intended.
+    """
+
     phase: str = "unspecified"
     policy: str = "unspecified"
     git_sha: str = field(default_factory=git_sha)
     created_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     notes: dict[str, Any] = field(default_factory=dict)
 
-    # The fields that must match for two writes to belong to the same run. `created_utc`,
-    # `notes` and `git_sha` deliberately are not: resuming a run after a docstring fix is
-    # normal, resuming it after the cost table changed is not.
-    IDENTITY: Final = (
-        "run_id", "env_config_hash", "reward_config_hash", "menu_fingerprint",
-        "taxonomy_hash",
-    )
+    @property
+    def declared_env_hashes(self) -> frozenset[str]:
+        return frozenset({self.env_config_hash, *self.env_config_hashes})
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -86,7 +105,7 @@ class RunMeta:
     def assert_compatible(self, other: Mapping[str, Any]) -> None:
         drift = {
             k: (other.get(k), getattr(self, k))
-            for k in self.IDENTITY
+            for k in IDENTITY_FIELDS
             if other.get(k) != getattr(self, k)
         }
         if drift:
@@ -120,7 +139,7 @@ def _encode(obj: object) -> Any:
     if isinstance(obj, Path):
         return str(obj)
     if hasattr(obj, "as_dict"):
-        return obj.as_dict()  # type: ignore[no-any-return]
+        return obj.as_dict()
     raise TypeError(f"{type(obj)!r} is not JSON-serialisable; convert it at the call site")
 
 
@@ -169,11 +188,14 @@ class TrajectoryStore:
         if self._fh is None:
             raise StoreError("store is not open; use `with TrajectoryStore(meta) as s:`")
         traj = dict(trajectory)
-        if traj.get("config_hash") != self.meta.env_config_hash:
+        if traj.get("config_hash") not in self.meta.declared_env_hashes:
             raise StoreError(
-                f"episode was generated under env config {traj.get('config_hash')!r} but "
-                f"this run pins {self.meta.env_config_hash!r}. A stored corpus whose "
-                "lines were produced under different configs cannot be rescored as one."
+                f"episode was generated under env config {traj.get('config_hash')!r}, "
+                f"which this run did not declare. Declared: "
+                f"{sorted(self.meta.declared_env_hashes)}. A curriculum stage that "
+                "changes the horizon changes this hash and is legitimate -- declare it "
+                "in RunMeta.env_config_hashes at run start. An undeclared hash means an "
+                "episode was generated under a configuration nobody intended."
             )
         line = StoredEpisode(traj, dict(ground_truth), dict(tags)).as_line()
         self._fh.write(line + "\n")

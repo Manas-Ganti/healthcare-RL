@@ -76,7 +76,7 @@ def sweep(
             totals.append(br.total)
             diags.append(br.diagnosis)
             tests.append(br.n_tests_charged)
-            spends.append(float(traj["spent"]))  # type: ignore[arg-type]
+            spends.append(float(traj["spent"]))
         points.append(ParetoPoint(
             budget=float(b),
             mean_total=float(np.mean(totals)),

@@ -17,6 +17,25 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.9",
     "scikit-learn>=1.4",
+    # Validates the emitted action grammar against the JSON Schema spec. The grammar is
+    # enforced in production by vLLM's own engine; this is how the fast suite checks that
+    # the schema we hand it actually rejects an off-menu action.
+    "jsonschema>=4.21",
+]
+
+# GPU-only. Nothing above dxenv/policy/llm.py and dxenv/train/grpo.py imports any of it,
+# and both import lazily, so the whole invariant suite runs on a laptop. Install this on
+# the CUDA host that runs rollouts and gradient steps, not on the machine you develop on.
+gpu = [
+    "torch>=2.4",
+    "transformers>=4.44",
+    "accelerate>=0.33",
+    "peft>=0.12",
+    "trl>=0.11",
+    "datasets>=2.20",
+    "vllm>=0.6",
+    "xgrammar>=0.1",
+    "bitsandbytes>=0.43",
 ]
 
 [build-system]
@@ -64,6 +83,14 @@ ignore = [
 "dxenv/reward/engine.py" = ["PLR0912", "PLR0915"]
 "dxenv/env/catalog.py" = ["PLR0912"]
 "dxenv/env/obs_model.py" = ["PLR0912"]
+# The training loop and the SFT/GRPO entry points are long because each step is spelled
+# out -- sample, score, assert, persist, update -- rather than hidden behind a framework.
+"dxenv/train/grpo.py" = ["PLR0912", "PLR0915", "PLC0415"]
+"dxenv/policy/sft.py" = ["PLC0415"]
+"dxenv/policy/llm.py" = ["PLC0415"]
+"dxenv/policy/decoding.py" = ["PLC0415"]
+"dxenv/data/store.py" = ["PLC0415"]
+"scripts/*" = ["PLC0415", "PLR0915", "PLR0912"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -74,5 +101,10 @@ warn_unreachable = true
 disallow_any_generics = true
 
 [[tool.mypy.overrides]]
-module = ["scipy.*", "sklearn.*", "yaml.*"]
+module = [
+    "scipy.*", "sklearn.*", "yaml.*",
+    # The GPU extra. Every import of these is lazy and inside a function; type-checking
+    # dxenv/ must not require a CUDA host to have been provisioned first.
+    "torch.*", "transformers.*", "peft.*", "trl.*", "datasets.*", "vllm.*",
+]
 ignore_missing_imports = true

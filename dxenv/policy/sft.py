@@ -12,6 +12,16 @@ happened to report. Even a policy that reports its own posterior can drift from 
 (top-k truncation, rounding); recomputing makes the target a property of the evidence
 rather than of the demonstrator.
 
+Precisely what the target is
+----------------------------
+The posterior's top `DEFAULT_MAX_LABELS`, at their exact posterior values, plus the
+max-entropy completion of the remaining mass -- NOT the posterior itself. The grammar
+caps how many labels a report may name, so the ordering of the unnamed tail is
+genuinely lost, and saying "the target is the posterior" would overstate it. Measured on
+the diagnosis turns of a 60-patient teacher run, mean total-variation distance from the
+true posterior is 0.018 and the worst case is 0.218, both bounded by the unnamed tail
+mass. `DEFAULT_MAX_LABELS` carries the measurement that set the cap.
+
 Abstention is seeded, not filtered in
 -------------------------------------
 An action the SFT set never contains is an action RL never samples, and an action RL
@@ -39,6 +49,7 @@ from pathlib import Path
 from typing import Any, Final
 
 import numpy as np
+import numpy.typing as npt
 
 from dxenv.data.taxonomy import Taxonomy, load_taxonomy
 from dxenv.env.bayes import entropy, posterior
@@ -102,7 +113,7 @@ class SFTExample:
 
 
 def soft_label_wire(
-    belief: np.ndarray,
+    belief: npt.NDArray[np.float64],
     reasoning: str,
     taxonomy: Taxonomy | None = None,
     max_labels: int = DEFAULT_MAX_LABELS,
@@ -120,7 +131,10 @@ def soft_label_wire(
         "kind": "diagnose",
         "reasoning": reasoning,
         "diagnosis": [
-            {"condition": tax.slugs[int(i)], "probability": round(float(belief[int(i)]), 6)}
+            # 9 dp, not 6: at 16 named labels, 6 dp accumulates ~8e-6 of rounding error,
+            # which is larger than the unnamed tail on a confident posterior and makes the
+            # target measurably not-the-posterior for no benefit.
+            {"condition": tax.slugs[int(i)], "probability": round(float(belief[int(i)]), 9)}
             for i in order
         ],
     }
