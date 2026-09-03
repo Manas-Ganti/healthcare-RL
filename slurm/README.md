@@ -16,6 +16,23 @@ projects like this one before:
 
 Set `DXENV_SCRATCH` before submitting, or edit the default in `env.sh`.
 
+## Logs
+
+Each job writes one combined file (stdout and stderr merged) to
+`slurm/logs/<name>-<jobid>.out`. The job id in the name means a resubmission never
+overwrites its predecessor, which matters for `04_grpo.sbatch` because it requeues itself
+and you want one file per link in the chain.
+
+**Submit from the repo root.** `#SBATCH` directives are parsed by `sbatch` before any
+shell runs, so `--output` cannot contain a variable and has to be a relative path --
+relative to the directory you submit *from*, not to the script. Submitting from elsewhere
+either scatters the logs or makes the job fail to launch outright, because SLURM will not
+start a job whose output directory does not exist. If you need to submit from elsewhere,
+use `sbatch --chdir=/path/to/healthcare-RL slurm/02_gate_b.sbatch`.
+
+The logs themselves are gitignored; `slurm/logs/.gitkeep` is committed so the directory
+survives a clone.
+
 ## Order
 
 ```bash
