@@ -128,7 +128,16 @@ class VLLMBackend:
     model: str
     lora_path: str | None = None
     max_model_len: int = 8192
-    gpu_memory_utilization: float = 0.85
+    gpu_memory_utilization: float = 0.55
+    """Deliberately below vLLM's own default.
+
+    In a GRPO run this engine shares a device with the trainer, which holds the 7B in
+    bf16 plus activations and optimizer state. vLLM PREALLOCATES its KV cache at startup,
+    so a utilization tuned for a pure-inference server leaves the trainer to OOM on the
+    first backward pass -- after the engine has loaded, which is the most expensive
+    possible moment to find out. Raise it for a standalone eval sweep, where nothing else
+    is on the card.
+    """
     tensor_parallel_size: int = 1
     dtype: str = "bfloat16"
     _engine: Any = field(default=None, init=False)
