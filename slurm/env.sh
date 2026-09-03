@@ -6,6 +6,16 @@
 # directory -- the calling script lost its error handling at the same moment it lost its
 # environment, and then reported success. Each job script sets -e itself, first.
 
+# `exit` in a SOURCED script terminates the calling shell. Since this file is meant to be
+# sourced -- by job scripts, and interactively when poking at things on a login node -- a
+# failure here would close your terminal, and only ever at the moment something has just
+# gone wrong. Fail with `return` when sourced, `exit` when run.
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    _dxenv_fail() { echo "$@" >&2; return 1; }
+else
+    _dxenv_fail() { echo "$@" >&2; exit 1; }
+fi
+
 # Scratch. HOME, not /projects: on ARC /projects is per-ALLOCATION and not writable by an
 # individual user, while home is 640GB (409GB used as of 2026-09-03, so ~230GB free) --
 # comfortably more than the ~15GB a 7B checkpoint needs. This mirrors what the sibling
@@ -17,8 +27,8 @@ export TORCHINDUCTOR_CACHE_DIR="$DXENV_SCRATCH/inductor"
 export OUTLINES_CACHE_DIR="$DXENV_SCRATCH/outlines"
 
 if ! mkdir -p "$HF_HOME" "$DXENV_SCRATCH" 2>/dev/null; then
-    echo "DXENV_SCRATCH=$DXENV_SCRATCH is not writable. Set it to somewhere with ~20GB." >&2
-    exit 1
+    _dxenv_fail "DXENV_SCRATCH=$DXENV_SCRATCH is not writable. Set it somewhere with ~20GB."
+    return 1 2>/dev/null || exit 1
 fi
 
 # Set by each job script's bootstrap, which walks up from $SLURM_SUBMIT_DIR.
@@ -44,8 +54,8 @@ module reset >/dev/null 2>&1 || true
 # both that the interpreter runs at all and that it is the one intended.
 export PY="$DXENV_VENV/bin/python"
 if [[ ! -x "$PY" ]]; then
-    echo "no interpreter at $PY -- run slurm/setup_cpu.sh first" >&2
-    exit 1
+    _dxenv_fail "no interpreter at $PY -- run slurm/setup_cpu.sh first"
+    return 1 2>/dev/null || exit 1
 fi
 export PATH="$DXENV_VENV/bin:$PATH"
 if ! "$PY" -c "
@@ -58,9 +68,9 @@ have = pathlib.Path(sys.prefix)
 assert want.samefile(have), f'sys.prefix is {have}, expected {want}'
 print(f'[dxenv] python={sys.executable} ({sys.version.split()[0]}) prefix={have}')
 "; then
-    echo "interpreter check FAILED for $PY. A python that prints nothing and exits 0 is a" >&2
-    echo "zero-byte or broken install -- rebuild the venv rather than debugging the job." >&2
-    exit 1
+    _dxenv_fail "interpreter check FAILED for $PY. A python that prints nothing and exits 0
+is a zero-byte or broken install -- rebuild the venv rather than debugging the job."
+    return 1 2>/dev/null || exit 1
 fi
 # ---------------------------------------------------------------------------------------
 
