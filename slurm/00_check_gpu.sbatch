@@ -19,6 +19,7 @@
 # So this loads a small model and generates one constrained action. If the API has moved,
 # it fails here, in minutes, with a traceback.
 source slurm/env.sh
+dxenv_notify_on_exit "GPU check"
 
 pip install -e ".[dev,gpu]"
 

@@ -11,6 +11,7 @@
 # internet and not a GPU, and because on clusters where compute nodes are network-isolated
 # a training job that tries to download will simply hang until the wall clock kills it.
 source slurm/env.sh
+dxenv_notify_on_exit "model fetch"
 
 python - <<PY
 from huggingface_hub import snapshot_download
