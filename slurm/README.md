@@ -16,6 +16,64 @@ projects like this one before:
 
 Set `DXENV_SCRATCH` before submitting, or edit the default in `env.sh`.
 
+## Notifications
+
+Jobs report themselves to Telegram so you do not have to hold an ssh session open. Each
+job sends on start, on success (with a tail of its log), and on failure (with a longer
+tail). Gate B additionally sends its verdict, and the GRPO chain reports which step and
+curriculum stage it reached each time it requeues.
+
+Setup, once:
+
+1. Message **@BotFather** on Telegram, send `/newbot`, keep the token.
+2. Message your new bot once -- a bot cannot open a conversation with you.
+3. Find your chat id:
+
+       curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates" | python -m json.tool
+
+   and read `result[0].message.chat.id`.
+4. Store both **outside the repo**:
+
+       mkdir -p ~/.config/dxenv
+       cat > ~/.config/dxenv/telegram.env <<'EOF'
+       export TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+       export TELEGRAM_CHAT_ID=987654321
+       EOF
+       chmod 600 ~/.config/dxenv/telegram.env
+
+   `env.sh` sources it if present. It lives outside the repo because this repo is public
+   and a committed bot token is a live credential, not a config value. `.gitignore`
+   refuses `*.env` as a second line of defence.
+5. Test from the login node:
+
+       python scripts/notify.py --title "hello from ARC" --require
+
+   `--require` makes a failed send exit non-zero. Without it, and everywhere inside a job,
+   a failed send is silent by design: a notifier that can turn a successful twenty-hour
+   run into a failed one because an HTTPS call timed out is worse than no notifier.
+
+**If step 5 works on the login node but no messages arrive from jobs**, the compute nodes
+have no route to the internet -- common, and the same reason `01_fetch_model.sbatch`
+exists. Two options: submit jobs with `--mail-user` for plain SLURM state emails, or run a
+watcher on the login node that polls `sacct` and sends the Telegram messages from there:
+
+```bash
+# login node, inside tmux/screen
+while true; do
+  sacct -u "$USER" --format=JobID,JobName%20,State,Elapsed --noheader -X \
+    | grep -Ev "RUNNING|PENDING" > /tmp/dxenv-sacct.now
+  if ! diff -q /tmp/dxenv-sacct.{last,now} >/dev/null 2>&1; then
+    python scripts/notify.py --title "SLURM update" --text "$(cat /tmp/dxenv-sacct.now)"
+    cp /tmp/dxenv-sacct.{now,last}
+  fi
+  sleep 120
+done
+```
+
+The wall-clock case is the one worth having either way: SLURM sends SIGTERM before killing
+a job, the trap catches it, and you get told. Without it a run that hits its time limit
+simply vanishes with no error message at all.
+
 ## Logs
 
 Each job writes one combined file (stdout and stderr merged) to

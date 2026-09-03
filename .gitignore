@@ -33,3 +33,12 @@ data/synthea_output/
 # whose --output directory does not exist.
 slurm/logs/*
 !slurm/logs/.gitkeep
+
+# Belt and braces on credentials. The Telegram token lives in
+# ~/.config/dxenv/telegram.env, OUTSIDE this repo, because this repo is public and a
+# committed bot token is a live credential rather than a config value. These patterns
+# exist so that a copy accidentally dropped in the tree is not committable.
+*.env
+!slurm/env.sh
+telegram.env
+secrets.*

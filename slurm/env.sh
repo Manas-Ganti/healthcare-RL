@@ -25,3 +25,11 @@ module reset >/dev/null 2>&1 || true
 module load Python/3.11.5 2>/dev/null || module load python/3.11 2>/dev/null || true
 module load CUDA/12.4.0 2>/dev/null || module load cuda/12.4 2>/dev/null || true
 source "$DXENV_REPO/.venv/bin/activate"
+
+# Telegram credentials, if configured. Kept OUTSIDE the repo on purpose: this repo is
+# public, and a committed bot token is a live credential, not a config value.
+# See scripts/notify.py for how to obtain the token and chat id.
+# shellcheck source=/dev/null
+[[ -f "$HOME/.config/dxenv/telegram.env" ]] && source "$HOME/.config/dxenv/telegram.env"
+# shellcheck source=/dev/null
+source "$DXENV_REPO/slurm/notify.sh"

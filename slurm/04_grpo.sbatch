@@ -17,6 +17,7 @@
 # action says not to, and it is the instruction that exists to stop a node being spent on
 # a run that cannot teach the model anything.
 source slurm/env.sh
+dxenv_notify_on_exit "GRPO"
 
 REF_ADAPTER="${1:-}"
 REF_ARG=""
@@ -35,9 +36,13 @@ python scripts/train_grpo.py \
 STATE="$DXENV_RUNS/grpo/trainer_state.json"
 if [[ -f "$STATE" ]]; then
   DONE=$(python -c "import json;print(json.load(open('$STATE'))['step_index'])")
+  STAGE=$(python -c "import json;print(json.load(open('$STATE'))['stage'])")
   echo "completed $DONE / 2000 steps"
   if (( DONE < 2000 )); then
     echo "requeueing"
-    sbatch "$0" "$REF_ADAPTER"
+    NEXT=$(sbatch --parsable "$0" "$REF_ADAPTER")
+    dxenv_notify --status start --title "GRPO $DONE/2000"         --text "stage ${STAGE} · requeued as job ${NEXT}"
+  else
+    dxenv_notify --status ok --title "GRPO complete"         --text "$DONE/2000 steps, final stage ${STAGE}"
   fi
 fi

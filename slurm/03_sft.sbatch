@@ -12,6 +12,7 @@
 # undertrained: 1 epoch, low LR, LoRA. A model sharpened onto its SFT set produces
 # identical rollouts, and identical rollouts give GRPO zero advantage to work with.
 source slurm/env.sh
+dxenv_notify_on_exit "SFT"
 
 python scripts/build_sft_data.py --n 2000 --frozen-split --out runs/phase3/sft.jsonl
 
