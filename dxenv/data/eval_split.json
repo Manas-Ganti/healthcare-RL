@@ -1,0 +1,16 @@
+{
+  "eval_hash": "d2b5f63072ab891b79e139e9de514c4f65e5ab8f28b45aa4985d660f39979ec8",
+  "n_eval": 3713,
+  "n_train": 14854,
+  "n_holdout": 1433,
+  "holdout_systems": [
+    "rheumatologic",
+    "obstetric"
+  ],
+  "provenance": {
+    "corpus_n": 20000,
+    "corpus_seed": 20260901,
+    "split_seed": 11,
+    "generator": "dxenv.data.corpus.generate_corpus"
+  }
+}
