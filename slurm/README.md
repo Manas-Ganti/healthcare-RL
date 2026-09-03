@@ -112,15 +112,19 @@ with a wasted allocation:
   "succeeds" in two seconds with an empty log. `env.sh` checks `sys.prefix` before any
   work happens.
 
-**Verify these two before the first submission**, because this repo guesses at them:
+Both were confirmed on 2026-09-03: `ece-6524-spring2026` is a real allocation, and
+`tc_a100_normal_short` carries priority 1500 with a 1-day cap -- the joint highest on the
+A100 partition. See `docs/arc/README.md` for the full QOS table.
+
+**Interactive sessions need a different QOS**, `tc_a100_normal_int` (same priority, 7-day
+cap). For first contact with the GPU code, an interactive session beats a batch job: when
+a moved vLLM API throws, you fix and rerun in seconds instead of re-queuing.
 
 ```bash
-sacctmgr show assoc user=$USER format=account,partition    # --account
-sacctmgr show qos format=name%28,priority,maxwall | grep a100
+interact --account=ece-6524-spring2026 --partition=a100_normal_q \
+         --qos=tc_a100_normal_int --gres=gpu:a100:1 \
+         --cpus-per-task=8 --mem=96G --time=01:00:00
 ```
-
-The headers currently say `--account=ece-6524-spring2026` and
-`--qos=tc_a100_normal_short`.
 
 ## Order
 

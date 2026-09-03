@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --mail-user=manasganti@vt.edu
 #SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm/logs/grpo-%j.out
@@ -24,6 +24,12 @@
 #               --partition=h200_normal_q --qos=tc_h200_normal_short --gres=gpu:h200:1.
 #   --account   from `quota`. Do NOT use *_preemptable_q: normal preempts preemptable,
 #               so moving there makes you the preemptee.
+#   --time      12h, deliberately, not the 24h that tc_a100_normal_short allows. This job
+#               RESUMES and requeues itself, so wall time costs only a vLLM restart per
+#               link, while a shorter request backfills far more easily -- partitions here
+#               have MaxTime=UNLIMITED, so the scheduler cannot plan around the jobs ahead
+#               of you and being small and short is the only reliable way through. Raising
+#               it to 24h would also sit exactly ON the QOS cap, with no margin.
 #
 # #SBATCH directives cannot read environment variables, and sbatch copies this file at
 # SUBMIT time -- a pending job will not pick up edits made after it was queued.
