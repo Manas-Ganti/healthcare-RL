@@ -1,0 +1,45 @@
+{
+  "n_patients": 10000,
+  "seed": 7,
+  "n_labels": 149,
+  "majority_class_rate": 0.0381,
+  "probes": {
+    "F": {
+      "name": "F",
+      "balanced_accuracy": 0.007246376811594203,
+      "top1_accuracy": 0.033,
+      "top5_accuracy": 0.1605,
+      "mean_weighted_brier": 0.00037529207908603015,
+      "n_features": 2
+    },
+    "V": {
+      "name": "V",
+      "balanced_accuracy": 0.2742726196340881,
+      "top1_accuracy": 0.4625,
+      "top5_accuracy": 0.8395,
+      "mean_weighted_brier": 0.602490764340434,
+      "n_features": 11
+    },
+    "T": {
+      "name": "T",
+      "balanced_accuracy": 0.709856517459653,
+      "top1_accuracy": 0.786,
+      "top5_accuracy": 0.964,
+      "mean_weighted_brier": 1.5053918069353747,
+      "n_features": 107
+    },
+    "T_with_leak": {
+      "name": "T_with_leak",
+      "balanced_accuracy": 0.9285712986799943,
+      "top1_accuracy": 0.9845,
+      "top5_accuracy": 0.995,
+      "mean_weighted_brier": 1.9139581949081368,
+      "n_features": 108
+    }
+  },
+  "v_minus_f": 0.26702624282249393,
+  "t_minus_v": 0.43558389782556484,
+  "v_minus_f_top1": 0.4295,
+  "t_minus_v_top1": 0.3235,
+  "leak_control_gain": 0.21871478122034138
+}

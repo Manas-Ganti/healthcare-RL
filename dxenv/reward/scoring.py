@@ -21,9 +21,7 @@ Range, for n = 149:
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path

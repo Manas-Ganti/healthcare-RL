@@ -31,6 +31,7 @@ from typing import Any, Final
 import numpy as np
 
 from dxenv.data.taxonomy import Taxonomy, load_taxonomy
+from dxenv.env.bayes import posterior_sequence
 from dxenv.env.catalog import Catalog, load_catalog
 from dxenv.env.obs_model import ObservationModel, ResultValue, build_observation_model
 from dxenv.policy.rollout import Rollout
@@ -129,8 +130,6 @@ def process_fraction(
     """
     if not evidence:
         return 1.0
-    from dxenv.env.bayes import posterior_sequence
-
     tax = taxonomy or load_taxonomy()
     m = model or build_observation_model()
     idx = tax.index(true_condition)

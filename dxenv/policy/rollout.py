@@ -19,15 +19,27 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 from dxenv.data.corpus import PatientRecord
 from dxenv.data.taxonomy import Taxonomy, load_taxonomy
 from dxenv.env.bayes import expected_ceiling, hard_ceiling
 from dxenv.env.catalog import Catalog, load_catalog
-from dxenv.env.episode import DiagnosticEpisode, EpisodeConfig, load_episode_config
+from dxenv.env.episode import (
+    DiagnosticEpisode,
+    EpisodeConfig,
+    load_episode_config,
+    sample_budget,
+)
 from dxenv.env.obs_model import ObservationModel, build_observation_model
 from dxenv.policy.baselines import Policy, run_episode
-from dxenv.reward.engine import GroundTruth, RewardBreakdown, RewardConfig, score_trajectory
+from dxenv.reward.engine import (
+    GroundTruth,
+    RewardBreakdown,
+    RewardConfig,
+    load_reward_config,
+    score_trajectory,
+)
 from dxenv.reward.scoring import weighted_score_fn
 
 
@@ -97,11 +109,10 @@ class RolloutContext:
     model: ObservationModel = field(default_factory=build_observation_model)
     _score_fn: Any = None
     _hard: float | None = None
+    _expected: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.reward_config is None:
-            from dxenv.reward.engine import load_reward_config
-
             self.reward_config = load_reward_config()
         self._score_fn = weighted_score_fn(self.taxonomy, self.reward_config.severity)
         self._hard = hard_ceiling(self._score_fn, len(self.taxonomy))
@@ -116,13 +127,34 @@ class RolloutContext:
         return self._hard
 
     def expected_for(self, record: PatientRecord) -> float:
-        """Full-information Bayes value for this patient. An upper bound; see env/bayes."""
-        return expected_ceiling(dict(record.analytes), self._score_fn, self.model)
+        """Full-information Bayes value for this patient. An upper bound; see env/bayes.
+
+        Memoised per patient. It is a deterministic function of the record and the k
+        rollouts of a group all share it, so recomputing a 149-way posterior over ~105
+        analytes eight times per patient is pure waste -- invisible next to a 7B forward
+        pass, and the dominant cost of a heuristic-policy sweep.
+        """
+        hit = self._expected.get(record.patient_id)
+        if hit is None:
+            hit = expected_ceiling(dict(record.analytes), self._score_fn, self.model)
+            self._expected[record.patient_id] = hit
+        return hit
 
 
 PolicyFactory = Callable[[int], Policy]
 """seed -> a fresh policy. A factory, not a policy, so k samples of the same patient get
 k independent samplers instead of sharing one generator's state and correlating."""
+
+
+def constant_factory(build: Callable[[], Policy]) -> PolicyFactory:
+    """A factory for a policy that does not sample, and so has no use for the seed.
+
+    The heuristic baselines are deterministic: `GreedyBayesPolicy` returns the same action
+    for the same observation every time. Wrapping them says that explicitly, instead of
+    scattering `lambda _seed: GreedyBayesPolicy()` -- which reads like an oversight -- at
+    every call site.
+    """
+    return lambda _seed: build()
 
 
 def rollout_once(
@@ -178,8 +210,6 @@ def rollout_group(
     if k < 1:
         raise ValueError(f"group size must be >= 1, got {k}")
     if budget is None:
-        from dxenv.env.episode import sample_budget
-
         budget = sample_budget(ctx.episode_config, np.random.default_rng(base_seed))
     return [
         rollout_once(record, policy_factory, base_seed + i, ctx, budget=budget)
@@ -187,7 +217,7 @@ def rollout_group(
     ]
 
 
-def group_rewards(rollouts: Sequence[Rollout]) -> np.ndarray:
+def group_rewards(rollouts: Sequence[Rollout]) -> npt.NDArray[np.float64]:
     return np.array([r.reward for r in rollouts], dtype=np.float64)
 
 

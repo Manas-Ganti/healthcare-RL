@@ -36,12 +36,26 @@ from dxenv.data.taxonomy import Taxonomy, load_taxonomy
 from dxenv.env.actions import ActionKind, ActionMenu, action_id, build_menu
 from dxenv.env.schemas import Abstain, Action, Diagnose, OrderTest, Prescribe
 
-DEFAULT_MAX_LABELS: Final = 8
+DEFAULT_MAX_LABELS: Final = 16
 """How many conditions a report may name explicitly.
 
-Not a truncation of the belief -- see `complete_distribution`. Emitting all 149 pairs on
-every rollout would triple the token cost of a GRPO group for mass that is, in a
-competent policy, almost entirely in the tail.
+Not a truncation of the belief -- see `complete_distribution`, which completes the tail
+rather than renormalising it away. But the completion is max-entropy, so whatever the
+posterior knew about the ordering of the unnamed labels IS lost, and how much is lost
+depends on this number.
+
+Chosen from measurement rather than taste. Unnamed posterior mass at the initial
+vitals-only observation, over 300 patients -- the most diffuse the belief ever is:
+
+    k= 4   mean 0.204   p90 0.523   max 0.690
+    k= 8   mean 0.107   p90 0.331   max 0.512
+    k=16   mean 0.044   p90 0.152   max 0.327
+    k=32   mean 0.011   p90 0.018   max 0.150
+
+16 roughly halves the p90 tail against 8 for about 200 extra tokens on the one diagnose
+turn of an episode. 32 halves it again but the returns have clearly turned, and the token
+cost lands on every rollout of every GRPO group. Emitting all 149 pairs would spend most
+of a rollout's budget on mass a competent policy has already ruled out.
 """
 
 MAX_REASONING_CHARS: Final = 1200

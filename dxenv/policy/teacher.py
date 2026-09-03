@@ -70,6 +70,7 @@ from dataclasses import dataclass, field
 from typing import Any, Final
 
 import numpy as np
+import numpy.typing as npt
 
 from dxenv.data.corpus import PatientRecord
 from dxenv.data.taxonomy import Taxonomy, load_taxonomy
@@ -275,7 +276,7 @@ class PrivilegedTeacher:
     cost_weight: float = 0.5
 
     def _log_gain(self, analyte: str, value: ResultValue, true_idx: int,
-                  belief: np.ndarray) -> float:
+                  belief: npt.NDArray[np.float64]) -> float:
         """Increase in the true condition's log-posterior from this exact result."""
         ll = self.model.log_likelihood_vector(analyte, value)
         shifted = ll - ll.max()
@@ -319,7 +320,7 @@ class PrivilegedTeacher:
             action_id=self.menu.id_for_test(key), test_key=key, prediction=prediction
         ), best[0]
 
-    def _report(self, belief: np.ndarray) -> Diagnose:
+    def _report(self, belief: npt.NDArray[np.float64]) -> Diagnose:
         """The posterior, not a one-hot. See the module docstring."""
         order = np.argsort(-belief)
         raw = {self.taxonomy.slugs[int(i)]: float(belief[int(i)]) for i in order}
@@ -349,7 +350,7 @@ def _privileged_reasoning(
 
 
 def _deleaked_reasoning(
-    obs: Observation, action: Action, belief: np.ndarray, taxonomy: Taxonomy
+    obs: Observation, action: Action, belief: npt.NDArray[np.float64], taxonomy: Taxonomy
 ) -> str:
     """Reasoning rebuilt from the visible posterior alone. Never sees the condition.
 
@@ -466,13 +467,41 @@ def audit_trace(trace: TeacherTrace, detector: LeakDetector | None = None) -> li
     return out
 
 
+MENTION_MIN_CHARS: Final = 5
+"""Minimum length of a synonym used for MENTION detection, as opposed to scrubbing.
+
+`Label.leak_strings` is deliberately wide -- it is the observation scrubber's safety net,
+where a false positive costs a scrubbed display string and a false negative is a leak. It
+therefore contains three-letter clinical abbreviations that are also ordinary English
+words: "all" (acute lymphoblastic leukemia) matches inside "nothing here at all", and
+"mi" matches inside "commit" even on a word boundary once hyphenation is involved.
+
+Prose mention detection has the opposite asymmetry. A false positive here drops a good
+SFT trace, and at corpus scale it drops most of them -- which is how a filter ends up
+switched off. So mentions are detected against the NARROW forms: display name, slug, and
+synonyms long enough not to collide with English.
+
+What this gives up is a mention made only via a short abbreviation ("GERD", "AF"). That
+is a real false-negative risk and it is accepted deliberately, because `deleak_ablation`
+is the backstop for exactly the mentions surface matching misses -- it measures the RATE
+at which the true condition is named without needing to recognise any particular form.
+"""
+
+
+def mention_forms(label: Any) -> tuple[str, ...]:
+    """The narrow surface forms, for detecting that a condition was NAMED."""
+    forms = {*label.canonical_forms, label.slug.lower()}
+    forms |= {s.lower() for s in label.synonyms if len(s) >= MENTION_MIN_CHARS}
+    return tuple(sorted(f for f in forms if f))
+
+
 def mentioned_conditions(text: str, taxonomy: Taxonomy) -> set[str]:
-    """Every taxonomy label whose surface form appears in `text`."""
+    """Every taxonomy label named in `text`, by its narrow forms. See `MENTION_MIN_CHARS`."""
     lowered = text.lower()
     return {
         lab.slug
         for lab in taxonomy.labels
-        if any(form and word_boundary_hit(lowered, form) is not None for form in lab.leak_strings)
+        if any(word_boundary_hit(lowered, form) is not None for form in mention_forms(lab))
     }
 
 
@@ -486,7 +515,7 @@ three items down the list does not launder an ungrounded assertion."""
 
 def check_grounding(
     turn: TeacherTurn,
-    belief: np.ndarray,
+    belief: npt.NDArray[np.float64],
     taxonomy: Taxonomy,
     top_n: int = 3,
     tolerance: float = 0.02,
@@ -512,9 +541,7 @@ def check_grounding(
     lowered = turn.reasoning.lower()
     for slug in sorted(mentioned_conditions(turn.reasoning, taxonomy)):
         idx = taxonomy.index(slug)
-        hits = [
-            word_boundary_hit(lowered, f) for f in taxonomy.get(slug).leak_strings if f
-        ]
+        hits = [word_boundary_hit(lowered, f) for f in mention_forms(taxonomy.get(slug))]
         at = min(h for h in hits if h is not None)
         window = turn.reasoning[at : at + _PROB_NEAR]
         numbers = [float(m) for m in re.findall(r"\d*\.\d+", window)]

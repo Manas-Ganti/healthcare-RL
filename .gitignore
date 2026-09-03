@@ -5,7 +5,24 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 *.egg-info/
-runs/
+# Stored rollouts and run metadata. Trajectories are the expensive artifact and MUST be
+# persisted (CLAUDE.md 4), but a 6,600-episode sweep is ~28MB and belongs in object
+# storage rather than in git history.
+#
+# The small results files the gates are checked against ARE committed, and not only for
+# the record: test_gate_a_thresholds_preregistered and test_gate_b_thresholds_preregistered
+# compare the gate config's commit timestamp against the results file's, and an UNTRACKED
+# results file makes that check return early and pass without comparing anything. A gate
+# whose enforcement is silently skipped is a note. (Re-including a file needs the parent
+# directory un-ignored first -- git will not descend into an excluded directory.)
+runs/*
+!runs/phase0/
+runs/phase0/*
+!runs/phase0/results.json
+!runs/phase3/
+runs/phase3/*
+!runs/phase3/prompted_baseline.json
 data/synthea_output/
 *.jsonl.gz
 .DS_Store
+

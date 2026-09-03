@@ -11,7 +11,7 @@ against, and the comparison would be meaningless in the flattering direction.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -160,7 +160,7 @@ class GreedyBayesPolicy:
         )
 
 
-def run_episode(episode: DiagnosticEpisode, policy: Policy) -> dict[str, object]:
+def run_episode(episode: DiagnosticEpisode, policy: Policy) -> dict[str, Any]:
     """Drive one episode to termination and return the stored trajectory."""
     obs = episode.reset()
     done = False
