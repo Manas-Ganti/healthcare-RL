@@ -6,6 +6,11 @@ label ordering. None of those show up as an exception; they show up as slightly
 different numbers that still look plausible. That is what these catch.
 
 Regenerate with `python scripts/regenerate_golden.py`, deliberately, and READ THE DIFF.
+
+Verified reproducing under both numpy 1.26 / mypy 1.11 and numpy 2.4 / mypy 2.3 on
+Python 3.11. The dependency floors in pyproject.toml are deliberately loose, so a fresh
+install on another machine resolves much newer versions than a development checkout --
+these fixtures are what says the numbers did not move when it did.
 """
 
 from __future__ import annotations

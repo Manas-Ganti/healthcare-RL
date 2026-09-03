@@ -162,7 +162,10 @@ def _smooth(
     probs: npt.NDArray[np.float64], eps: float = CATEGORICAL_EPSILON
 ) -> npt.NDArray[np.float64]:
     k = probs.shape[-1]
-    return (1.0 - eps) * probs + eps / k
+    # np.asarray rather than returning the expression directly: under numpy 2 stubs
+    # `float * NDArray` widens to Any, and `mypy --strict` on the cluster rejected it
+    # while an older numpy locally did not. Same idiom as bayes._normalise_log.
+    return np.asarray((1.0 - eps) * probs + eps / k, dtype=np.float64)
 
 
 def _load_overrides(path: Path | None = None) -> dict[str, dict[str, dict[str, float]]]:
