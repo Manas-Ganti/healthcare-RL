@@ -17,7 +17,7 @@ dxenv_notify() {
 
 dxenv_notify_on_exit() {
     local label="${1:-job}"
-    local log="${SLURM_SUBMIT_DIR:-$PWD}/slurm/logs/${SLURM_JOB_NAME:-job}-${SLURM_JOB_ID:-local}.out"
+    local log="${DXENV_REPO:-$PWD}/slurm/logs/${SLURM_JOB_NAME:-job}-${SLURM_JOB_ID:-local}.out"
     export DXENV_LABEL="$label" DXENV_LOG="$log" DXENV_T0=$SECONDS
 
     _DXENV_REPORTED=0

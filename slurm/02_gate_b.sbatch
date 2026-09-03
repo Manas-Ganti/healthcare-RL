@@ -13,7 +13,30 @@
 #
 # Pass an adapter as $1 to measure the SFT'd policy instead of the base model; the results
 # then land in sft_baseline.json rather than overwriting the pre-SFT run.
+
+# --- bootstrap -------------------------------------------------------------------
+# set -e HERE, not in env.sh. The first version put it there, and when env.sh failed to
+# load the script kept going and printed "GPU stack OK" after every step had failed --
+# the error handling was inside the file that failed to load.
+set -euo pipefail
+
+# SLURM copies the submitted script into a spool directory, so $0 and BASH_SOURCE point
+# at /cm/local/apps/slurm/... and are useless for finding the repo. Walk up from the
+# SUBMISSION directory instead, so the job works whether it was submitted from the repo
+# root or from inside slurm/.
+DXENV_ROOT="${SLURM_SUBMIT_DIR:-$PWD}"
+while [[ "$DXENV_ROOT" != "/" && ! -f "$DXENV_ROOT/pyproject.toml" ]]; do
+    DXENV_ROOT="$(dirname "$DXENV_ROOT")"
+done
+if [[ ! -f "$DXENV_ROOT/pyproject.toml" ]]; then
+    echo "cannot find the repo root above ${SLURM_SUBMIT_DIR:-$PWD}" >&2
+    exit 1
+fi
+cd "$DXENV_ROOT"
+export DXENV_REPO="$DXENV_ROOT"
+echo "repo root: $DXENV_ROOT"
 source slurm/env.sh
+# ---------------------------------------------------------------------------------
 dxenv_notify_on_exit "Gate B"
 
 LORA_ARG=""
