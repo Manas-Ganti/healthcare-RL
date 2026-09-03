@@ -91,6 +91,49 @@ def send(text: str, require: bool = False) -> bool:
         return False
 
 
+def discover_chat_id() -> None:
+    """Print the chat ids that have messaged this bot. Step 3 of the setup above.
+
+    Reads getUpdates, which only returns chats that have messaged the bot -- so an empty
+    result almost always means step 2 was skipped, and the message says so rather than
+    leaving you to wonder whether the token is wrong.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token:
+        raise SystemExit("set TELEGRAM_BOT_TOKEN first (export it, or pass it inline)")
+    url = f"https://api.telegram.org/bot{token}/getUpdates"
+    try:
+        with urllib.request.urlopen(url, timeout=TIMEOUT_S) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise SystemExit(
+            f"could not reach the Telegram API ({type(exc).__name__}). On a login node "
+            "this usually means the token is malformed; from a compute node it usually "
+            "means there is no route to the internet."
+        ) from None
+
+    if not data.get("ok"):
+        raise SystemExit(
+            f"Telegram rejected the token: {data.get('description', 'unknown error')}"
+        )
+    chats = {
+        (u.get("message") or u.get("channel_post") or {}).get("chat", {}).get("id"):
+        (u.get("message") or u.get("channel_post") or {}).get("chat", {}).get(
+            "username") or "(no username)"
+        for u in data.get("result", [])
+    }
+    chats.pop(None, None)
+    if not chats:
+        raise SystemExit(
+            "the token works, but no chats found. A bot cannot message you first -- open "
+            "the t.me link BotFather gave you, press Start, send any message, then run "
+            "this again."
+        )
+    print("chat ids that have messaged this bot:")
+    for cid, name in chats.items():
+        print(f"  TELEGRAM_CHAT_ID={cid}   ({name})")
+
+
 def tail(path: Path, lines: int) -> str:
     try:
         content = path.read_text(errors="replace").splitlines()
@@ -108,7 +151,13 @@ def main() -> None:
     ap.add_argument("--status", default=None, help="ok | fail | start")
     ap.add_argument("--require", action="store_true",
                     help="exit non-zero if the send fails; for testing the setup only")
+    ap.add_argument("--discover-chat-id", action="store_true",
+                    help="print the chat ids that have messaged this bot, then exit")
     args = ap.parse_args()
+
+    if args.discover_chat_id:
+        discover_chat_id()
+        return
 
     icon = {"ok": "✅", "fail": "❌", "start": "▶️"}.get(args.status or "", "")
     parts = []
