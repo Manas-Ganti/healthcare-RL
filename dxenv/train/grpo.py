@@ -36,6 +36,7 @@ the run metadata rather than a number edited in place.
 from __future__ import annotations
 
 import json
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -411,6 +412,84 @@ class GRPOTrainer:
         return True
 
     # ----------------------------------------------------------------------- run --
+    # ------------------------------------------------------------------ checkpoint --
+    STATE_FILE = "trainer_state.json"
+
+    def save_state(self) -> Path:
+        """Everything a resumed run needs that is not in the adapter weights.
+
+        On a scheduler with a wall clock -- SLURM, and every HPC allocation -- a long run
+        is a chain of shorter jobs, and what is NOT saved here silently resets at each
+        boundary. Each of these has a specific consequence if it does:
+
+          rng            the same patients get drawn again in the same order every job,
+                         so the run trains on a fraction of the split and reports a mean
+                         over a biased sample
+          stage/rewards  the curriculum restarts at stage 0, so a policy that had earned
+                         a full horizon is put back on a short one
+          monitors       the ceiling and collapse detectors refill their windows from
+                         empty and cannot fire until half a window has passed -- the
+                         detectors are OFF for the first stretch of every job
+          step_index     checkpoints and logs overwrite each other
+
+        The trajectory store needs nothing: it is append-only and its lines carry their
+        own step number.
+        """
+        state = {
+            "step_index": self.step_index,
+            "n_syncs": self.n_syncs,
+            "stage": self.stage.name,
+            "stage_rewards": list(self.stage_rewards),
+            "rng": self.rng.bit_generator.state,
+            "ceiling_rewards": list(self.ceiling_monitor.rewards),
+            "ceiling_ceilings": list(self.ceiling_monitor.ceilings),
+            "cost_counts": list(self.cost_monitor.counts),
+            "cost_capped": [bool(b) for b in self.cost_monitor.budget_capped],
+            "degenerate_flags": [bool(b) for b in self.degenerate_monitor.flags],
+            "config_hashes": sorted(self.meta.declared_env_hashes),
+            "reward_config_hash": self.meta.reward_config_hash,
+        }
+        path = self.config.root / self.config.run_id / self.STATE_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Written via a temp file and renamed: a job killed mid-write would otherwise
+        # leave a truncated state file, and the next job would fail to parse it and start
+        # from zero -- which is the failure this whole mechanism exists to prevent.
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(state, indent=2, default=str) + "\n")
+        tmp.replace(path)
+        return path
+
+    def load_state(self) -> bool:
+        """Restore from `trainer_state.json`. Returns False if there is nothing to resume.
+
+        Refuses to resume across a reward-config change: the stored monitor windows and
+        stage rewards were measured under the old weights, and mixing them with new ones
+        produces a mean that is neither.
+        """
+        path = self.config.root / self.config.run_id / self.STATE_FILE
+        if not path.exists():
+            return False
+        state = json.loads(path.read_text())
+        if state.get("reward_config_hash") != self.meta.reward_config_hash:
+            raise TrainingError(
+                f"cannot resume run {self.config.run_id!r}: it was trained under reward "
+                f"config {state.get('reward_config_hash')!r} and this process has "
+                f"{self.meta.reward_config_hash!r}. The saved monitor windows and stage "
+                "rewards were measured under the old weights. Start a new run_id, or "
+                "rescore the stored trajectories instead (scripts/rescore.py)."
+            )
+        self.step_index = int(state["step_index"])
+        self.n_syncs = int(state.get("n_syncs", 0))
+        self.stage = self.curriculum.stages[self.curriculum.index_of(state["stage"])]
+        self.stage_rewards = [float(x) for x in state["stage_rewards"]]
+        self.rng.bit_generator.state = state["rng"]
+        self.ceiling_monitor.rewards = deque(state["ceiling_rewards"])
+        self.ceiling_monitor.ceilings = deque(state["ceiling_ceilings"])
+        self.cost_monitor.counts = deque(int(c) for c in state["cost_counts"])
+        self.cost_monitor.budget_capped = deque(bool(b) for b in state["cost_capped"])
+        self.degenerate_monitor.flags = deque(bool(b) for b in state["degenerate_flags"])
+        return True
+
     def run(self, steps: int | None = None) -> list[StepReport]:
         n = steps if steps is not None else self.config.max_steps
         store = TrajectoryStore(self.meta, root=self.config.root)
@@ -426,7 +505,12 @@ class GRPOTrainer:
                         self.updater.save(
                             self.config.root / self.config.run_id / f"step-{self.step_index}"
                         )
+                        self.save_state()
             finally:
+                # In `finally`, so a wall-clock kill, an OOM or a halted monitor still
+                # leaves a resumable checkpoint. Losing the last few steps is cheap;
+                # losing the curriculum stage and the monitor windows is not.
+                self.save_state()
                 log.close()
                 self._store = None
         return self.history

@@ -40,6 +40,11 @@ def main() -> None:
     ap.add_argument("--kl-coef", type=float, default=0.02)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--root", type=Path, default=Path("runs"))
+    ap.add_argument("--resume", action="store_true",
+                    help="continue an existing --run-id from its trainer_state.json. On a "
+                         "scheduler a long run is a chain of jobs; without this each job "
+                         "restarts the curriculum and refills the monitor windows from "
+                         "empty, leaving the detectors off for its first stretch.")
     ap.add_argument("--dry-run", action="store_true",
                     help="full loop, real rewards and monitors, no gradient step")
     args = ap.parse_args()
@@ -74,8 +79,19 @@ def main() -> None:
             return LLMPolicy(backend=backend, temperature=args.temperature, seed=seed)
 
     trainer = GRPOTrainer(cfg, records, splits, factory, updater)  # (3)
-    for report in trainer.run(steps=args.steps):
-        print(report.line())
+    if args.resume:
+        if trainer.load_state():
+            print(f"resumed {args.run_id} at step {trainer.step_index}, "
+                  f"stage {trainer.stage.name}")
+        else:
+            print(f"no checkpoint for {args.run_id}; starting from step 0")
+
+    remaining = args.steps - trainer.step_index
+    if remaining <= 0:
+        print(f"{args.run_id} has already run {trainer.step_index}/{args.steps} steps")
+        return
+    for report in trainer.run(steps=remaining):
+        print(report.line(), flush=True)
 
 
 if __name__ == "__main__":

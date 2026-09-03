@@ -383,3 +383,92 @@ def test_loop_is_deterministic_under_seed(tmp_path, fixture_corpus, episode_conf
     a = [r.mean_reward for r in build("a").run(steps=3)]
     b = [r.mean_reward for r in build("b").run(steps=3)]
     assert a == b
+
+
+# ------------------------------------------------------------------- checkpointing --
+
+
+def test_resume_restores_step_stage_and_monitor_windows(trainer) -> None:
+    """On a scheduler a long run is a chain of jobs. What is not saved silently resets.
+
+    The monitor windows are the subtle one: refilled from empty, the ceiling and collapse
+    detectors cannot fire until half a window has passed, so they are OFF for the first
+    stretch of every job in the chain.
+    """
+    trainer.run(steps=3)
+    before = (trainer.step_index, trainer.stage.name, list(trainer.stage_rewards),
+              len(trainer.ceiling_monitor.rewards), len(trainer.cost_monitor.counts),
+              len(trainer.degenerate_monitor.flags))
+    assert before[3] > 0 and before[4] > 0
+
+    fresh = GRPOTrainer(
+        trainer.config, trainer.records, trainer.splits, trainer.policy_factory,
+        NullUpdater(), ctx=trainer.ctx, verify_frozen=False,
+    )
+    assert fresh.step_index == 0 and not fresh.ceiling_monitor.rewards
+    assert fresh.load_state()
+    after = (fresh.step_index, fresh.stage.name, list(fresh.stage_rewards),
+             len(fresh.ceiling_monitor.rewards), len(fresh.cost_monitor.counts),
+             len(fresh.degenerate_monitor.flags))
+    assert after == before
+
+
+def test_resume_continues_the_rng_rather_than_repeating_it(trainer, tmp_path) -> None:
+    """Without the RNG state each job draws the same patients in the same order."""
+    trainer.run(steps=2)
+    first_ids = {r.patient_id for r in trainer.sample_patients()}
+
+    fresh = GRPOTrainer(
+        trainer.config, trainer.records, trainer.splits, trainer.policy_factory,
+        NullUpdater(), ctx=trainer.ctx, verify_frozen=False,
+    )
+    fresh.load_state()
+    assert {r.patient_id for r in fresh.sample_patients()} == first_ids
+
+    restarted = GRPOTrainer(
+        trainer.config, trainer.records, trainer.splits, trainer.policy_factory,
+        NullUpdater(), ctx=trainer.ctx, verify_frozen=False,
+    )
+    assert {r.patient_id for r in restarted.sample_patients()} != first_ids
+
+
+def test_load_state_returns_false_with_nothing_to_resume(trainer) -> None:
+    from dataclasses import replace
+
+    fresh = GRPOTrainer(
+        replace(trainer.config, run_id="never-run"), trainer.records, trainer.splits,
+        trainer.policy_factory, NullUpdater(), ctx=trainer.ctx, verify_frozen=False,
+    )
+    assert fresh.load_state() is False
+
+
+def test_resume_refuses_across_a_reward_config_change(trainer) -> None:
+    """Monitor windows measured under old weights must not be mixed with new ones."""
+    from dataclasses import replace
+
+    from dxenv.train.grpo import TrainingError
+
+    trainer.run(steps=2)
+    fresh = GRPOTrainer(
+        trainer.config, trainer.records, trainer.splits, trainer.policy_factory,
+        NullUpdater(), ctx=trainer.ctx, verify_frozen=False,
+    )
+    fresh.meta = replace(fresh.meta, reward_config_hash="different")
+    with pytest.raises(TrainingError, match="cannot resume"):
+        fresh.load_state()
+
+
+def test_checkpoint_survives_a_halted_run(trainer, monkeypatch) -> None:
+    """A wall-clock kill or a tripped monitor must still leave something to resume from."""
+    import dxenv.train.grpo as grpo
+
+    trainer.run(steps=2)
+
+    def exploding(*a, **kw):
+        raise CeilingViolation("injected")
+
+    monkeypatch.setattr(grpo, "assert_below_ceiling", exploding)
+    with pytest.raises(CeilingViolation):
+        trainer.run(steps=1)
+    state = trainer.config.root / trainer.config.run_id / GRPOTrainer.STATE_FILE
+    assert state.exists()
