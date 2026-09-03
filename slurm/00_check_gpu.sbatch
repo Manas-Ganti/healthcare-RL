@@ -8,13 +8,21 @@
 #SBATCH --time=00:30:00
 #SBATCH --output=slurm/logs/gpucheck-%j.out
 
-# Installs the GPU stack and proves it imports. Short and cheap on purpose: this is the
-# step most likely to fail, none of the GPU code in this repo has ever executed, and
-# finding a resolver conflict here costs 30 minutes rather than a training allocation.
+# Installs the GPU stack, then drives ONE episode through it end to end.
+#
+# Short and cheap on purpose. None of the GPU code in this repo has ever executed, and the
+# parts most likely to have rotted are vLLM's guided-decoding API (the import path for
+# GuidedDecodingParams, and whether SamplingParams still takes `guided_decoding`) and the
+# signature of LLM.chat(). An import check would not touch any of that -- it would pass,
+# and the first real exercise would then be inside the four-hour Gate B job.
+#
+# So this loads a small model and generates one constrained action. If the API has moved,
+# it fails here, in minutes, with a traceback.
 source slurm/env.sh
 
 pip install -e ".[dev,gpu]"
 
+echo "=== 1. does the stack import, and can torch see the GPU? ==="
 python - <<'PY'
 import torch
 print("torch", torch.__version__, "| cuda available:", torch.cuda.is_available())
@@ -24,9 +32,18 @@ assert torch.cuda.is_available(), (
     "then pip install -e '.[dev,gpu]'"
 )
 print("device:", torch.cuda.get_device_name(0))
-import vllm, peft, trl, transformers
+print("memory:", round(torch.cuda.get_device_properties(0).total_memory / 2**30), "GiB")
+import peft, transformers, trl, vllm
 print("vllm", vllm.__version__, "| transformers", transformers.__version__,
       "| peft", peft.__version__, "| trl", trl.__version__)
 PY
 
-echo "GPU stack OK."
+echo
+echo "=== 2. does the constrained-decoding path actually work? ==="
+# A small model on purpose: this is testing OUR plumbing against vLLM's API, not the
+# model's diagnostic ability. Override with DXENV_SMOKE_MODEL if 0.5B is unavailable.
+export DXENV_SMOKE_MODEL="${DXENV_SMOKE_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}"
+python scripts/gpu_smoke.py --model "$DXENV_SMOKE_MODEL" --n 2
+
+echo
+echo "GPU stack OK. Next: sbatch slurm/02_gate_b.sbatch"
