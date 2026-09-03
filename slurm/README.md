@@ -29,9 +29,10 @@ Setup, once:
 2. Message your new bot once -- a bot cannot open a conversation with you.
 3. Find your chat id:
 
-       curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates" | python -m json.tool
+       TELEGRAM_BOT_TOKEN=<your-token> python scripts/notify.py --discover-chat-id
 
-   and read `result[0].message.chat.id`.
+   It prints the ids of every chat that has messaged the bot. An empty result almost
+   always means step 2 was skipped.
 4. Store both **outside the repo**:
 
        mkdir -p ~/.config/dxenv
