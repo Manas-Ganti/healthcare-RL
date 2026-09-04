@@ -194,32 +194,48 @@ def test_sft_config_refuses_to_overtrain() -> None:
         SFTConfig(epochs=5.0)
 
 
-def test_trl_config_drops_unknown_fields(capsys) -> None:
-    """TRL renames these often; an unknown keyword is a TypeError inside a GPU job.
-
-    max_seq_length -> max_length, and completion_only_loss arrived mid-series. Filtering
-    against the installed signature turns a crash into a printed line naming what was
-    dropped.
-    """
+def test_trl_config_drops_optional_fields_loudly(capsys) -> None:
+    """TRL removes and renames these; on the cluster even warmup_ratio is gone."""
     import inspect
     from pathlib import Path
 
     from dxenv.policy.sft import SFTConfig, _trl_config
 
-    class OldTRLConfig:
-        # Only the signature is inspected; the body is irrelevant.
-        def __init__(self, output_dir=None, num_train_epochs=None, max_seq_length=None, seed=None):  # noqa: ARG002
+    class TrimmedTRLConfig:
+        # Only the signature is inspected.
+        def __init__(self, output_dir=None, num_train_epochs=None, learning_rate=None, per_device_train_batch_size=None, gradient_accumulation_steps=None, max_seq_length=None, seed=None):  # noqa: ARG002, E501
             self.output_dir, self.max_seq_length = output_dir, max_seq_length
 
-    OldTRLConfig.__signature__ = inspect.signature(OldTRLConfig.__init__)
+    TrimmedTRLConfig.__signature__ = inspect.signature(TrimmedTRLConfig.__init__)
 
-    built = _trl_config(OldTRLConfig, SFTConfig(output_dir=Path("/tmp/x")), bf16=False)
+    built = _trl_config(TrimmedTRLConfig, SFTConfig(output_dir=Path("/tmp/x")), bf16=False)
     out = capsys.readouterr().out
-    assert "does not accept" in out
+    assert "accepts:" in out and "dropping unsupported" in out
     # The older spelling is used rather than silently losing the sequence cap.
     assert built.max_seq_length == SFTConfig().max_seq_len
-    # And the loss restriction being unavailable is called out, not passed over.
+    # Losing the loss restriction changes WHAT is trained, so it is called out separately.
     assert "WARNING" in out and "completion" in out
+
+
+def test_trl_config_refuses_to_lose_a_field_that_defines_the_run() -> None:
+    """Epochs and learning rate ARE 'deliberately undertrained' (CLAUDE.md 8.4).
+
+    Falling back to TRL's defaults for those would produce an adapter that looks trained
+    and is not the one intended -- and unlike a crash, nothing downstream would say so.
+    """
+    import inspect
+    from pathlib import Path
+
+    from dxenv.policy.sft import SFTConfig, SFTError, _trl_config
+
+    class NoLearningRate:
+        def __init__(self, output_dir=None, num_train_epochs=None, per_device_train_batch_size=None, gradient_accumulation_steps=None):  # noqa: E501
+            pass
+
+    NoLearningRate.__signature__ = inspect.signature(NoLearningRate.__init__)
+
+    with pytest.raises(SFTError, match="learning_rate"):
+        _trl_config(NoLearningRate, SFTConfig(output_dir=Path("/tmp/x")), bf16=False)
 
 
 def test_sft_rows_are_prompt_completion_not_bare_messages(dataset) -> None:
