@@ -121,7 +121,13 @@ def action_json_schema(
         # `pattern` IS compiled into the grammar, so the bound becomes structural: the
         # decoder cannot emit a 701st character. Excluding quote and backslash keeps the
         # regex simple and costs only escapes inside the reasoning, which is prose.
-        "pattern": f'^[^"\\\\]{{0,{MAX_REASONING_CHARS}}}$',
+        # Excludes the C0 control characters as well as quote and backslash. The first
+        # version excluded only quote and backslash, which let the model emit a RAW
+        # newline inside the string -- structurally fine to the grammar, and invalid JSON,
+        # because JSON requires control characters to be escaped. Excluding backslash
+        # means it cannot write the escape either, so the only consistent choice is to
+        # forbid the characters themselves.
+        "pattern": f'^[^"\\\\\\x00-\\x1f]{{0,{MAX_REASONING_CHARS}}}$',
         "description": (
             f"Why this action, given only what is on the case sheet. "
             f"One or two sentences, at most {MAX_REASONING_CHARS} characters."
@@ -279,7 +285,13 @@ def parse_action(
     m = menu or build_menu()
     tax = taxonomy or load_taxonomy()
     try:
-        obj = json.loads(text)
+        # strict=False accepts literal control characters inside strings. Belt to the
+        # pattern's braces: grammar backends vary in how much of a regex they honour, and
+        # a raw newline in a reasoning string is unambiguous -- accepting it parses the
+        # same content and changes nothing about which action was chosen. That is a
+        # different thing from a fallback ACTION, which would substitute a decision the
+        # policy never made, and is still refused below.
+        obj = json.loads(text, strict=False)
     except json.JSONDecodeError as exc:
         raise DecodingError(
             f"model output is not JSON ({exc}). Under constrained decoding this is "
