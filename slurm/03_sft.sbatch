@@ -60,9 +60,26 @@ pip install -q -e ".[dev,train]"
 
 # Skip the rebuild if the set is already there. It costs 2000 teacher traces and 16000
 # rollouts, and a resubmission after a TRL-API failure should not pay for it twice.
-if [[ -s runs/phase3/sft.jsonl ]]; then
-    echo "reusing existing runs/phase3/sft.jsonl ($(wc -l < runs/phase3/sft.jsonl) examples)"
+# Reuse only if the targets still match the CURRENT grammar. A stale set is not a
+# harmless saving: the first SFT run trained on alphabetical key order while the decoder
+# forces schema order, and produced an adapter that rambled in three languages. Rebuilding
+# costs 30 minutes; training on a mismatched set costs 95 minutes plus the Gate B run that
+# measures it.
+if [[ -s runs/phase3/sft.jsonl ]] && python -c "
+import json, sys
+from dxenv.policy.decoding import action_json_schema
+declared = {v['properties']['kind']['const']: list(v['properties'])
+            for v in action_json_schema()['oneOf']}
+with open('runs/phase3/sft.jsonl') as fh:
+    for line in fh:
+        obj = json.loads(json.loads(line)['completion'])
+        emitted = list(obj)
+        if emitted != [k for k in declared[obj['kind']] if k in emitted]:
+            sys.exit(1)
+"; then
+    echo "reusing runs/phase3/sft.jsonl ($(wc -l < runs/phase3/sft.jsonl) examples, targets match the grammar)"
 else
+    echo "building the SFT set (absent, or its targets do not match the current grammar)"
     python scripts/build_sft_data.py --n 2000 --frozen-split --out runs/phase3/sft.jsonl
 fi
 
