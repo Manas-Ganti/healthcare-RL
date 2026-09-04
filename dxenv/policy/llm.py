@@ -45,6 +45,7 @@ from dxenv.env.actions import ActionMenu, build_menu
 from dxenv.env.episode import DiagnosticEpisode
 from dxenv.env.schemas import Action, Observation
 from dxenv.policy.decoding import (
+    DEFAULT_MAX_TOKENS,
     DecodingError,
     action_json_schema,
     parse_action,
@@ -96,7 +97,7 @@ class RandomBackend:
         conversations: Sequence[Sequence[dict[str, str]]],
         n: int = 1,
         temperature: float = 1.0,  # noqa: ARG002 - a uniform sampler has no temperature
-        max_tokens: int = 512,  # noqa: ARG002
+        max_tokens: int = DEFAULT_MAX_TOKENS,  # noqa: ARG002
         seed: int | None = None,
     ) -> list[list[Generation]]:
         rng = np.random.default_rng(seed) if seed is not None else self._rng
@@ -227,7 +228,7 @@ class VLLMBackend:
         conversations: Sequence[Sequence[dict[str, str]]],
         n: int = 1,
         temperature: float = 1.0,
-        max_tokens: int = 512,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         seed: int | None = None,
     ) -> list[list[Generation]]:
         from vllm import SamplingParams
@@ -281,7 +282,7 @@ class LLMPolicy:
 
     backend: Backend
     temperature: float = 1.0
-    max_tokens: int = 512
+    max_tokens: int = DEFAULT_MAX_TOKENS
     seed: int | None = None
     menu: ActionMenu = field(default_factory=build_menu)
     taxonomy: Taxonomy = field(default_factory=load_taxonomy)
@@ -297,6 +298,26 @@ class LLMPolicy:
             [conv], n=1, temperature=self.temperature,
             max_tokens=self.max_tokens, seed=turn_seed,
         )[0][0]
+
+        # A generation stopped by the token limit is a PREFIX of valid JSON -- correct
+        # structure, unfinished string -- and reporting that as "the grammar was not
+        # applied" sends the reader looking in exactly the wrong place. Retry once with a
+        # larger budget: finishing the same constrained generation is not choosing a
+        # different action, so it does not substitute anything the way a fallback would.
+        if gen.finish_reason == "length":
+            gen = self.backend.generate(
+                [conv], n=1, temperature=self.temperature,
+                max_tokens=self.max_tokens * 2, seed=turn_seed,
+            )[0][0]
+            if gen.finish_reason == "length":
+                raise DecodingError(
+                    f"turn {obs.turn} of {episode.record.patient_id}: the model did not "
+                    f"finish a valid action within {self.max_tokens * 2} tokens, so the "
+                    f"output is a truncated prefix rather than malformed JSON. Raise "
+                    f"LLMPolicy.max_tokens, or shorten the reasoning the prompt asks for "
+                    f"-- do NOT add a fallback action, which would silently replace what "
+                    f"the policy was going to do. Got: {gen.text[:200]!r}"
+                )
         try:
             action = parse_action(gen.text, self.menu, self.taxonomy)
         except DecodingError as exc:

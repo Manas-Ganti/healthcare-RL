@@ -58,7 +58,32 @@ cost lands on every rollout of every GRPO group. Emitting all 149 pairs would sp
 of a rollout's budget on mass a competent policy has already ruled out.
 """
 
-MAX_REASONING_CHARS: Final = 1200
+MAX_REASONING_CHARS: Final = 700
+"""Cap on the reasoning string, in characters.
+
+Advisory, not enforced. Grammar backends generally do not implement JSON Schema's
+`maxLength` for strings -- xgrammar constrains structure, not length -- so this bounds the
+token budget below and is repeated as a prompt instruction, which is what actually
+shortens the output.
+"""
+
+
+def max_completion_tokens(max_labels: int = DEFAULT_MAX_LABELS) -> int:
+    """A generous upper bound on the tokens one action needs.
+
+    Derived rather than guessed, because guessing produced a real failure: at 512 the 7B
+    ran out mid-string on an `order_test` and the truncated prefix -- structurally valid
+    JSON, just unfinished -- surfaced as "the grammar was not applied", which is exactly
+    backwards. The grammar was applied; the budget was not enough to finish inside it.
+
+    The worst case is `diagnose`: reasoning, plus `max_labels` entries each carrying a
+    condition slug (up to ~35 chars) and a 9-decimal probability. Roughly 4 chars/token,
+    ~30 tokens per entry, and doubled for headroom -- the cost of being generous is some
+    latency, and the cost of being tight is a dead six-hour job.
+    """
+    reasoning = MAX_REASONING_CHARS // 4
+    entries = max_labels * 30
+    return 2 * (reasoning + entries + 64)
 
 QUANT_PREDICTIONS: Final = ("low", "normal", "high")
 CAT_PREDICTIONS: Final = ("normal_categorical", "abnormal_categorical")
@@ -334,3 +359,7 @@ def guided_decoding_params(schema: Mapping[str, Any] | None = None) -> Any:
     raise DecodingError(
         "this vLLM exposes neither StructuredOutputsParams nor GuidedDecodingParams"
     )
+
+
+DEFAULT_MAX_TOKENS: Final = max_completion_tokens()
+"""Token budget one action needs, from `max_completion_tokens`. 512 was not enough."""

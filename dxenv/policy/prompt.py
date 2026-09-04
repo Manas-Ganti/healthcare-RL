@@ -37,6 +37,9 @@ overstating confidence is punished, and so is hedging toward a flat distribution
 subtract from your score, always, so order one only when the answer it gives is worth
 more than it costs. Running out of turns without deciding is scored like abstaining.
 
+Keep `reasoning` to one or two sentences. It is a justification, not an essay, and a
+long one risks being cut off mid-action.
+
 Reply with a single JSON object and nothing else.\
 """
 
