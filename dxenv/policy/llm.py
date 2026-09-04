@@ -292,13 +292,18 @@ class VLLMBackend:
         outputs = engine.chat(
             [list(c) for c in conversations], params, lora_request=lora, use_tqdm=False
         )
+        # Defensive attribute access on vLLM's output objects. `text` is load-bearing and
+        # must be present; the rest are metadata this code can do without, and the last
+        # four failures were all API-shape drift on this surface -- there is no reason to
+        # let a renamed `finish_reason` cost another queue cycle when its absence only
+        # loses the truncation check.
         return [
             [
                 Generation(
                     text=c.text,
-                    prompt=o.prompt or "",
-                    token_ids=tuple(c.token_ids or ()),
-                    finish_reason=str(c.finish_reason),
+                    prompt=getattr(o, "prompt", "") or "",
+                    token_ids=tuple(getattr(c, "token_ids", ()) or ()),
+                    finish_reason=str(getattr(c, "finish_reason", "stop") or "stop"),
                 )
                 for c in o.outputs
             ]
