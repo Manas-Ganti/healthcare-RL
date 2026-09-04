@@ -167,6 +167,39 @@ class VLLMBackend:
             )
         return self._engine
 
+    def _structured_output_kwargs(self) -> dict[str, Any]:  # pragma: no cover - CUDA only
+        """Build the JSON-schema constraint for whichever vLLM API is installed.
+
+        vLLM renamed this: `guided_decoding=GuidedDecodingParams(...)` became
+        `structured_outputs=StructuredOutputsParams(...)`. This code was written against
+        ~0.6 and the cluster runs 0.28, where the old name raises ImportError.
+
+        Detected rather than pinned. A version check would encode today's cutover and
+        break at the next rename in a place nobody would look; asking the installed
+        SamplingParams which keyword it actually accepts stays correct across both, and
+        fails with the available parameter names rather than an ImportError if a third
+        spelling ever appears.
+        """
+        import inspect
+
+        from vllm import SamplingParams
+        from vllm import sampling_params as sp
+
+        accepted = set(inspect.signature(SamplingParams).parameters)
+        for kwarg, cls_name in (
+            ("structured_outputs", "StructuredOutputsParams"),
+            ("guided_decoding", "GuidedDecodingParams"),
+        ):
+            if kwarg in accepted and hasattr(sp, cls_name):
+                return {kwarg: getattr(sp, cls_name)(json=dict(self._schema))}
+        raise BackendError(
+            "this vLLM exposes neither `structured_outputs` nor `guided_decoding` on "
+            f"SamplingParams (it accepts: {sorted(accepted)}). Constrained decoding is "
+            "not optional here -- without it the grammar is unenforced and I3 stops "
+            "holding -- so fix the mapping in VLLMBackend rather than falling back to "
+            "free generation."
+        )
+
     def generate(  # pragma: no cover - requires CUDA
         self,
         conversations: Sequence[Sequence[dict[str, str]]],
@@ -176,7 +209,6 @@ class VLLMBackend:
         seed: int | None = None,
     ) -> list[list[Generation]]:
         from vllm import SamplingParams
-        from vllm.sampling_params import GuidedDecodingParams
 
         engine = self._lazy_engine()
         params = SamplingParams(
@@ -184,7 +216,7 @@ class VLLMBackend:
             temperature=temperature,
             max_tokens=max_tokens,
             seed=seed,
-            guided_decoding=GuidedDecodingParams(json=self._schema),
+            **self._structured_output_kwargs(),
         )
         lora = None
         if self.lora_path is not None:

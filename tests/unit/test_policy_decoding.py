@@ -227,3 +227,79 @@ def test_chat_messages_have_system_and_user_roles(fixture_corpus, catalog, menu)
     msgs = chat_messages(observe(fixture_corpus[0], catalog, menu))
     assert [m["role"] for m in msgs] == ["system", "user"]
     assert all(m["content"] for m in msgs)
+
+
+# ------------------------------------------------------------- vLLM API compatibility --
+
+
+def _fake_vllm(kwarg: str, cls_name: str):
+    """A stand-in vLLM exposing one generation of the structured-output API."""
+    import inspect
+    import types
+
+    sp = types.ModuleType("vllm.sampling_params")
+
+    class Params:
+        def __init__(self, json):
+            self.json = json
+
+    Params.__name__ = cls_name
+    setattr(sp, cls_name, Params)
+
+    # Name mirrors vLLM's class, which is what makes the fake a faithful stand-in.
+    def SamplingParams(**kw):  # noqa: N802  # pragma: no cover - only its signature is read
+        return kw
+
+    SamplingParams.__signature__ = inspect.Signature(
+        [
+            inspect.Parameter(p, inspect.Parameter.KEYWORD_ONLY, default=None)
+            for p in ("n", "temperature", "max_tokens", "seed", kwarg)
+        ]
+    )
+    v = types.ModuleType("vllm")
+    v.SamplingParams = SamplingParams
+    v.sampling_params = sp
+    return v, sp
+
+
+@pytest.mark.parametrize(
+    ("kwarg", "cls_name"),
+    [
+        ("structured_outputs", "StructuredOutputsParams"),
+        ("guided_decoding", "GuidedDecodingParams"),
+    ],
+)
+def test_structured_output_api_is_detected_not_pinned(monkeypatch, kwarg, cls_name) -> None:
+    """vLLM renamed this between the version this was written for and the one deployed.
+
+    A version check would encode today's cutover and break at the next rename somewhere
+    nobody would look. Asking the installed SamplingParams which keyword it accepts stays
+    correct across both, which is what this asserts -- on fakes, because the real check
+    needs a CUDA host and this has to run in the fast suite.
+    """
+    from dxenv.policy.llm import VLLMBackend
+
+    v, sp = _fake_vllm(kwarg, cls_name)
+    monkeypatch.setitem(__import__("sys").modules, "vllm", v)
+    monkeypatch.setitem(__import__("sys").modules, "vllm.sampling_params", sp)
+
+    got = VLLMBackend(model="x")._structured_output_kwargs()
+    assert list(got) == [kwarg]
+    assert type(got[kwarg]).__name__ == cls_name
+
+
+def test_unknown_structured_output_api_raises_rather_than_degrading(monkeypatch) -> None:
+    """Constrained decoding is not optional: unenforced, the grammar stops holding I3.
+
+    So an unrecognised API must fail loudly rather than fall back to free generation,
+    which would silently produce off-menu actions and a format reward that is no longer
+    zero.
+    """
+    from dxenv.policy.llm import BackendError, VLLMBackend
+
+    v, sp = _fake_vllm("nothing_relevant", "SomethingElse")
+    monkeypatch.setitem(__import__("sys").modules, "vllm", v)
+    monkeypatch.setitem(__import__("sys").modules, "vllm.sampling_params", sp)
+
+    with pytest.raises(BackendError, match="neither"):
+        VLLMBackend(model="x")._structured_output_kwargs()

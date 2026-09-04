@@ -319,10 +319,18 @@ def guided_decoding_params(schema: Mapping[str, Any] | None = None) -> Any:
     the invariant suite runs -- does not require vLLM to be installed.
     """
     try:
-        from vllm.sampling_params import GuidedDecodingParams
+        from vllm import sampling_params as sp
     except ImportError as exc:  # pragma: no cover - exercised only on a GPU host
         raise DecodingError(
-            "vLLM is not installed. Install the GPU extra (`pip install -e '.[gpu]'`) on "
-            "a CUDA host; the grammar itself is pure data and needs nothing."
+            "vLLM is not installed. Install the infer extra (`pip install -e "
+            "'.[infer]'`) on a CUDA host; the grammar itself is pure data and needs "
+            "nothing."
         ) from exc
-    return GuidedDecodingParams(json=dict(schema or action_json_schema()))
+    # Renamed in vLLM: GuidedDecodingParams -> StructuredOutputsParams. Detected rather
+    # than pinned; see VLLMBackend._structured_output_kwargs for the reasoning.
+    for name in ("StructuredOutputsParams", "GuidedDecodingParams"):
+        if hasattr(sp, name):
+            return getattr(sp, name)(json=dict(schema or action_json_schema()))
+    raise DecodingError(
+        "this vLLM exposes neither StructuredOutputsParams nor GuidedDecodingParams"
+    )
