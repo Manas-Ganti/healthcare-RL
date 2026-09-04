@@ -114,7 +114,18 @@ def action_json_schema(
     reasoning = {
         "type": "string",
         "maxLength": MAX_REASONING_CHARS,
-        "description": "Why this action, given only what is on the case sheet.",
+        # `maxLength` alone does not bound anything: grammar backends constrain STRUCTURE,
+        # not string length, so a chatty model will fill whatever token budget it is
+        # given. A 7B ran past 2876 tokens mid-sentence with the cap set to 700.
+        #
+        # `pattern` IS compiled into the grammar, so the bound becomes structural: the
+        # decoder cannot emit a 701st character. Excluding quote and backslash keeps the
+        # regex simple and costs only escapes inside the reasoning, which is prose.
+        "pattern": f'^[^"\\\\]{{0,{MAX_REASONING_CHARS}}}$',
+        "description": (
+            f"Why this action, given only what is on the case sheet. "
+            f"One or two sentences, at most {MAX_REASONING_CHARS} characters."
+        ),
     }
 
     def variant(kind: str, props: dict[str, Any]) -> dict[str, Any]:
