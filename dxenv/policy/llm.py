@@ -227,11 +227,12 @@ class VLLMBackend:
             # merely more token-hungry. This is engine configuration, not policy: the
             # fallback changes how output is formatted, never which action is chosen, and
             # it says loudly which rung it landed on.
-            attempts: list[dict[str, Any]] = [
-                {"backend": "xgrammar", "disable_any_whitespace": True},
-                {"backend": "xgrammar"},
-                {},
-            ]
+            # No `disable_any_whitespace`. It was accepted by the engine and the model
+            # still emitted '{"kind": "order_test", ...' with spaces, so it was not doing
+            # what it claimed; and now that SFT targets are rendered with the model's own
+            # spacing (see decoding.WIRE_KEY_ORDER), forcing compact output would create
+            # the very train/inference mismatch that wrecked the first SFT run.
+            attempts: list[dict[str, Any]] = [{"backend": "xgrammar"}, {}]
             supports_cfg = (
                 "structured_outputs_config" in inspect.signature(LLM.__init__).parameters
             )
@@ -418,7 +419,8 @@ def batched_act(
     policies: Sequence[LLMPolicy],
     episodes: Sequence[DiagnosticEpisode],
     observations: Sequence[Observation],
-) -> list[Action]:
+    strict: bool = True,
+) -> list[Action | None]:
     """One backend call for many episodes' current turns.
 
     This is what makes the project run at all. Driving episodes one at a time issues a
@@ -483,23 +485,38 @@ def batched_act(
                 f"rather than be scored."
             )
 
-    actions: list[Action] = []
+    actions: list[Action | None] = []
     for i, (policy, episode, obs, gen) in enumerate(
         zip(policies, episodes, observations, gens, strict=True)
     ):
         if gen.finish_reason == "length":
-            raise DecodingError(
+            message = (
                 f"turn {obs.turn} of {episode.record.patient_id}: no valid action within "
                 f"{budget * 2} tokens; the output is a truncated prefix. Raise "
                 f"max_tokens or shorten the reasoning the prompt asks for. Do NOT add a "
                 f"fallback action. Got: {gen.text[:200]!r}"
             )
+            if strict:
+                raise DecodingError(message)
+            print(f"[dxenv] {message}", flush=True)
+            actions.append(None)
+            continue
         try:
             action = parse_action(gen.text, policy.menu, policy.taxonomy)
         except DecodingError as exc:
-            raise DecodingError(
-                f"turn {obs.turn} of {episode.record.patient_id}: {exc}"
-            ) from exc
+            if strict:
+                raise DecodingError(
+                    f"turn {obs.turn} of {episode.record.patient_id}: {exc}"
+                ) from exc
+            # Not strict: record the failure and let the caller end this episode. A
+            # 1,600-episode sweep must not die because one generation degenerated -- and
+            # the information is not lost, because Gate B scores schema_valid_fraction
+            # against a threshold of 1.0, so a single failure still fails the gate. Loud,
+            # but not fatal to the run that would have reported it.
+            print(f"[dxenv] decode failure, {episode.record.patient_id} turn {obs.turn}: "
+                  f"{gen.text[:120]!r}", flush=True)
+            actions.append(None)
+            continue
         policy.generations.append(
             {
                 "turn": obs.turn,

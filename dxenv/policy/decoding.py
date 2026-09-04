@@ -352,9 +352,35 @@ def sample_wire_action(
     return base
 
 
+WIRE_KEY_ORDER: Final = ("kind", "reasoning", "test_key", "prediction", "treatment_key",
+                        "diagnosis")
+"""Canonical key order: the order `action_json_schema` DECLARES the properties in.
+
+Not alphabetical. This serialisation is what SFT trains the model to emit, and a
+grammar-constrained decoder emits properties in declaration order -- so if the two
+disagree, every token after the first divergence is off the distribution the model was
+trained on.
+
+That is not a theoretical concern. `sort_keys=True` here taught the model
+`{"kind":...,"prediction":...,"reasoning":...}` while the decoder forces
+`{"kind":...,"reasoning":...}`, and the SFT'd 7B responded by rambling, drifting into
+Chinese mid-string, and emitting fragments like `basePath/000022/bedside/urinalysis`. The
+adapter was fine; it was being decoded into a shape it had never seen.
+"""
+
+
 def render_wire(obj: Mapping[str, Any]) -> str:
-    """Serialise a wire object the way a decoder would emit it."""
-    return json.dumps(obj, separators=(",", ":"), sort_keys=True)
+    """Serialise a wire object exactly as the constrained decoder emits one.
+
+    Key order follows the schema, and the separators are Python's defaults -- which is
+    what the model is observed to produce, and what its own pre-training prior favours.
+    Fighting that prior buys a few tokens and costs distribution match.
+    """
+    ordered = {k: obj[k] for k in WIRE_KEY_ORDER if k in obj}
+    extra = {k: v for k, v in obj.items() if k not in ordered}
+    if extra:
+        raise DecodingError(f"wire object has keys outside the schema: {sorted(extra)}")
+    return json.dumps(ordered)
 
 
 # --------------------------------------------------------------------------- vLLM ----

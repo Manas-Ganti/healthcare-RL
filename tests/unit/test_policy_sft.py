@@ -38,6 +38,13 @@ def traces(fixture_corpus):
 
 
 @pytest.fixture(scope="module")
+def schema_for_order():
+    from dxenv.policy.decoding import action_json_schema
+
+    return action_json_schema()
+
+
+@pytest.fixture(scope="module")
 def dataset(traces):
     return SFTDataset(build_examples(traces) + seed_abstentions(traces, fraction=0.08))
 
@@ -256,3 +263,28 @@ def test_sft_rows_are_prompt_completion_not_bare_messages(dataset) -> None:
         assert [m["role"] for m in row["prompt"]] == ["system", "user"]
         assert [m["role"] for m in row["completion"]] == ["assistant"]
         assert row["completion"][0]["content"].startswith("{")
+
+
+def test_sft_targets_match_the_decoder_key_order(dataset, schema_for_order) -> None:
+    """SFT must train the model to emit exactly what the grammar will force it to emit.
+
+    This is the bug that wrecked the first SFT run. `render_wire` used sort_keys=True, so
+    training taught {"kind","prediction","reasoning","test_key"} while the decoder forces
+    the schema's declaration order {"kind","reasoning","test_key","prediction"}. Every
+    token after the first divergence was off-distribution, and the fine-tuned 7B responded
+    by rambling, drifting into Chinese mid-string, and emitting fragments like
+    `basePath/000022/bedside/urinalysis`.
+    """
+    import json
+
+    declared = {
+        v["properties"]["kind"]["const"]: list(v["properties"])
+        for v in schema_for_order["oneOf"]
+    }
+    for example in dataset.examples:
+        obj = json.loads(example.completion)
+        emitted = list(obj)
+        expected = [k for k in declared[obj["kind"]] if k in emitted]
+        assert emitted == expected, (
+            f"{example.kind} target emits {emitted}, decoder forces {expected}"
+        )
