@@ -137,4 +137,10 @@ class Trajectory(Strict):
     budget: float
     steps: tuple[Step, ...]
     terminated: bool
-    termination_reason: Literal["diagnose", "abstain", "max_turns", "budget_exhausted"]
+    termination_reason: Literal[
+        "diagnose", "abstain", "max_turns", "budget_exhausted", "decode_failure"
+    ]
+    """`decode_failure`: the policy produced nothing the grammar and parser could turn
+    into an action. Scored as a non-decision, like running out of turns -- the reward
+    engine's fallback branch -- because inventing an action on the policy's behalf would
+    put a decision in the trajectory that the policy never made."""

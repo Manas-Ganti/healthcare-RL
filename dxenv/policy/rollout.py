@@ -218,6 +218,7 @@ def rollout_lockstep(
     specs: Sequence[tuple[PatientRecord, int, float]],
     policy_factory: PolicyFactory,
     ctx: RolloutContext,
+    strict: bool = False,
 ) -> list[Rollout]:
     """Run many episodes together, one backend call per ROUND of turns.
 
@@ -265,8 +266,18 @@ def rollout_lockstep(
             [cast(LLMPolicy, policies[i]) for i in live],
             [episodes[i] for i in live],
             [observations[i] for i in live],
+            strict=strict,
         )
         for i, action in zip(live, actions, strict=True):
+            if action is None:
+                # The policy emitted nothing usable. That is a policy failure, not a
+                # harness bug, so the episode ends the way any other failure to commit
+                # does -- scored as a non-decision, exactly like running out of turns.
+                # Nothing is fabricated on its behalf.
+                episodes[i].state.done = True
+                episodes[i].state.termination_reason = "decode_failure"
+                done[i] = True
+                continue
             observations[i], done[i], _ = episodes[i].step(action)
 
     return [
