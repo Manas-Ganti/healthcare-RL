@@ -189,18 +189,46 @@ class VLLMBackend:
                 "enable_lora": self.lora_path is not None,
                 "max_lora_rank": 64,
             }
-            # Compact JSON. vLLM's structured-output engine permits arbitrary whitespace
-            # by default, and the model duly spends tokens pretty-printing -- observed
-            # emitting '{\n  "kind": ...' and running past 2876 tokens. Indentation
-            # carries no information the parser uses.
+            # Compact JSON. vLLM permits arbitrary whitespace between tokens by default,
+            # and the model duly spends them pretty-printing -- observed emitting
+            # '{\n  "kind": ...'. Indentation carries nothing the parser uses, and
+            # whitespace the grammar allows is another unbounded channel.
             #
-            # Passed by name only if this vLLM accepts it, and as a dict rather than an
-            # imported config class, because the class has moved between releases and a
-            # wrong import path would abort engine startup -- another queue cycle to
-            # discover.
-            if "structured_outputs_config" in inspect.signature(LLM.__init__).parameters:
-                kwargs["structured_outputs_config"] = {"disable_any_whitespace": True}
-            self._engine = LLM(**kwargs)
+            # `disable_any_whitespace` is rejected unless the backend is named explicitly
+            # ("only supported for xgrammar and guidance"), so both go together.
+            #
+            # Tried in descending order of preference and falling back on ANY failure,
+            # because every config-shape mismatch here has cost a full queue cycle to
+            # discover, and the last option -- vLLM's own defaults -- is always correct,
+            # merely more token-hungry. This is engine configuration, not policy: the
+            # fallback changes how output is formatted, never which action is chosen, and
+            # it says loudly which rung it landed on.
+            attempts: list[dict[str, Any]] = [
+                {"backend": "xgrammar", "disable_any_whitespace": True},
+                {"backend": "xgrammar"},
+                {},
+            ]
+            supports_cfg = (
+                "structured_outputs_config" in inspect.signature(LLM.__init__).parameters
+            )
+            last: Exception | None = None
+            for cfg in attempts:
+                try:
+                    self._engine = LLM(
+                        **kwargs,
+                        **({"structured_outputs_config": cfg} if cfg and supports_cfg else {}),
+                    )
+                    print(f"[dxenv] vLLM structured_outputs_config={cfg or 'defaults'}")
+                    break
+                except Exception as exc:
+                    last = exc
+                    print(f"[dxenv] structured_outputs_config={cfg} rejected "
+                          f"({type(exc).__name__}: {str(exc)[:160]}); trying simpler")
+            if self._engine is None:
+                raise BackendError(
+                    f"vLLM engine would not start under any structured-output "
+                    f"configuration. Last error: {last}"
+                ) from last
         return self._engine
 
     def _structured_output_kwargs(self) -> dict[str, Any]:  # pragma: no cover - CUDA only
