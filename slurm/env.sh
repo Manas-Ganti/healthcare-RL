@@ -22,7 +22,9 @@ fi
 # project on this cluster settled on; see docs/arc/runbook.md.
 export DXENV_SCRATCH="${DXENV_SCRATCH:-$HOME/dxenv}"
 export HF_HOME="${HF_HOME:-$DXENV_SCRATCH/hf}"
-export HF_HUB_ENABLE_HF_TRANSFER=1
+# HF_HUB_ENABLE_HF_TRANSFER is deprecated in current huggingface_hub and warns on
+# every invocation; Xet replaced it.
+export HF_XET_HIGH_PERFORMANCE=1
 export TORCHINDUCTOR_CACHE_DIR="$DXENV_SCRATCH/inductor"
 export OUTLINES_CACHE_DIR="$DXENV_SCRATCH/outlines"
 
