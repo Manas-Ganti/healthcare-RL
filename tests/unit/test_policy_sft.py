@@ -192,3 +192,51 @@ def test_sft_config_refuses_to_overtrain() -> None:
     """A model sharpened onto its SFT set gives GRPO zero advantage to work with."""
     with pytest.raises(SFTError, match="epochs"):
         SFTConfig(epochs=5.0)
+
+
+def test_trl_config_drops_unknown_fields(capsys) -> None:
+    """TRL renames these often; an unknown keyword is a TypeError inside a GPU job.
+
+    max_seq_length -> max_length, and completion_only_loss arrived mid-series. Filtering
+    against the installed signature turns a crash into a printed line naming what was
+    dropped.
+    """
+    import inspect
+    from pathlib import Path
+
+    from dxenv.policy.sft import SFTConfig, _trl_config
+
+    class OldTRLConfig:
+        # Only the signature is inspected; the body is irrelevant.
+        def __init__(self, output_dir=None, num_train_epochs=None, max_seq_length=None, seed=None):  # noqa: ARG002
+            self.output_dir, self.max_seq_length = output_dir, max_seq_length
+
+    OldTRLConfig.__signature__ = inspect.signature(OldTRLConfig.__init__)
+
+    built = _trl_config(OldTRLConfig, SFTConfig(output_dir=Path("/tmp/x")), bf16=False)
+    out = capsys.readouterr().out
+    assert "does not accept" in out
+    # The older spelling is used rather than silently losing the sequence cap.
+    assert built.max_seq_length == SFTConfig().max_seq_len
+    # And the loss restriction being unavailable is called out, not passed over.
+    assert "WARNING" in out and "completion" in out
+
+
+def test_sft_rows_are_prompt_completion_not_bare_messages(dataset) -> None:
+    """`completion_only_loss` applies to prompt-completion datasets.
+
+    With a conversational messages-only dataset TRL cannot tell where the prompt ends, so
+    the flag is ignored or raises -- and training on the prompt would spend most of the
+    gradient reproducing a 13k-character menu the model never has to generate.
+    """
+    rows = [
+        {
+            "prompt": [dict(m) for m in e.messages],
+            "completion": [{"role": "assistant", "content": e.completion}],
+        }
+        for e in dataset.examples[:5]
+    ]
+    for row in rows:
+        assert [m["role"] for m in row["prompt"]] == ["system", "user"]
+        assert [m["role"] for m in row["completion"]] == ["assistant"]
+        assert row["completion"][0]["content"].startswith("{")
