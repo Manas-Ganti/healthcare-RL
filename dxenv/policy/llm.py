@@ -464,8 +464,29 @@ def batched_act(
         for slot, out in zip(stuck, retry, strict=True):
             gens[slot] = out[0]
 
+    # Alignment, checked rather than trusted. A batched call returns a list, and if it
+    # were ever out of order -- by a backend change, a scheduler reordering, or a bug here
+    # -- episode i would be handed episode j's action. Nothing downstream could detect
+    # that: every action is individually legal, every episode still terminates, and the
+    # rewards would simply be attached to the wrong trajectories. It would look like a
+    # weak policy rather than a broken harness.
+    #
+    # Every prompt names its own case ("CASE <patient_ref> (turn N"), so the returned
+    # prompt is a witness of which conversation produced it, when the backend supplies it.
+    for obs, gen in zip(observations, gens, strict=True):
+        marker = f"CASE {obs.patient_ref}"
+        if gen.prompt and marker not in gen.prompt:
+            raise BackendError(
+                f"batched outputs are misaligned: the generation returned for "
+                f"{obs.patient_ref} carries a different case in its prompt. Every action "
+                f"would be legal and attached to the wrong episode, so this must halt "
+                f"rather than be scored."
+            )
+
     actions: list[Action] = []
-    for policy, episode, obs, gen in zip(policies, episodes, observations, gens, strict=True):
+    for i, (policy, episode, obs, gen) in enumerate(
+        zip(policies, episodes, observations, gens, strict=True)
+    ):
         if gen.finish_reason == "length":
             raise DecodingError(
                 f"turn {obs.turn} of {episode.record.patient_id}: no valid action within "
@@ -482,7 +503,7 @@ def batched_act(
         policy.generations.append(
             {
                 "turn": obs.turn,
-                "prompt": [dict(m) for m in convs[len(actions)]],
+                "prompt": [dict(m) for m in convs[i]],
                 "completion": gen.text,
                 "finish_reason": gen.finish_reason,
             }
