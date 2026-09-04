@@ -23,6 +23,7 @@ import json
 import os
 import time
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,7 @@ from dxenv.data.taxonomy import Taxonomy, load_taxonomy
 from dxenv.env.actions import build_menu
 from dxenv.env.episode import load_episode_config
 from dxenv.policy.baselines import GreedyBayesPolicy, PriorPolicy, VitalsOnlyPolicy
+from dxenv.policy.decoding import action_json_schema, schema_fingerprint
 from dxenv.policy.llm import LLMPolicy, RandomBackend, VLLMBackend
 from dxenv.policy.rollout import RolloutContext, constant_factory, rollout_group
 
@@ -162,20 +164,33 @@ def main() -> None:
     # Gate B proper, the go/no-go into Phase 4. Same script, same thresholds, two
     # different decisions, and the results must not overwrite each other.
     subject_name = "sft" if args.lora else "prompted"
+    # A UNIQUE run id per invocation. The store is append-only, so a fixed id makes every
+    # attempt -- including the five that crashed while the vLLM path was being fixed --
+    # accumulate into one file: 13,536 lines where this run contributes 3,800. That breaks
+    # progress counting, and worse, it silently mixes episodes generated under different
+    # GRAMMARS, since the schema changed between those attempts. Offline rescoring would
+    # then average across incompatible decoders without saying so.
+    run_tag = os.environ.get("SLURM_JOB_ID") or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     out = args.out or Path(f"runs/phase3/{'sft' if args.lora else 'prompted'}_baseline.json")
 
     records = generate_corpus(args.n, seed=args.seed)
     ctx = RolloutContext()
     assert ctx.reward_config is not None
     meta = RunMeta(
-        run_id=f"phase3_{subject_name}",
+        run_id=f"phase3_{subject_name}-{run_tag}",
         env_config_hash=load_episode_config().hash(),
         reward_config_hash=ctx.reward_config.hash(),
         menu_fingerprint=build_menu().fingerprint(),
         taxonomy_hash=load_taxonomy().hash(),
         phase=f"phase3_{subject_name}_baseline",
         policy="mixed",
-        notes={"n": args.n, "k": args.k, "seed": args.seed},
+        notes={
+            "n": args.n, "k": args.k, "seed": args.seed,
+            # The grammar is as much a part of how a trajectory was produced as the
+            # reward weights are of how it was scored. Without this, two runs under
+            # different schemas are indistinguishable in the store.
+            "grammar_fingerprint": schema_fingerprint(action_json_schema()),
+        },
     )
 
     rows: list[dict[str, Any]] = []
