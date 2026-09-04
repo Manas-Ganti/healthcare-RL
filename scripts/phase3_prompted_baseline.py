@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -76,8 +78,23 @@ def evaluate(
 ) -> dict[str, Any]:
     per_patient_best, all_rewards, group_stds, tests, first_sample = [], [], [], [], []
     ceilings, everything, schema_valid = [], [], []
+    # Progress, because this runs for hours and prints nothing otherwise: vLLM's own
+    # progress bar is off (use_tqdm=False, since one bar per batched call would be noise),
+    # so without this a live job is indistinguishable from a hung one.
+    started = time.monotonic()
     for i, rec in enumerate(records):
         rollouts = rollout_group(rec, factory, k, seed + i * k, ctx)
+        if (i + 1) % max(5, len(records) // 20) == 0 or i + 1 == len(records):
+            done = i + 1
+            elapsed = time.monotonic() - started
+            rate = elapsed / done
+            print(
+                f"  [{name}] {done}/{len(records)} patients · "
+                f"{elapsed / 60:.1f} min elapsed · "
+                f"{rate * (len(records) - done) / 60:.1f} min remaining · "
+                f"mean R {np.mean(all_rewards + [r.reward for r in rollouts]):+.3f}",
+                flush=True,
+            )
         rewards = [r.reward for r in rollouts]
         for r in rollouts:
             store.append(r.trajectory, r.ground_truth_dict(), policy=name,
@@ -162,7 +179,11 @@ def main() -> None:
     )
 
     rows: list[dict[str, Any]] = []
-    with TrajectoryStore(meta, root=Path("runs")) as store:
+    # DXENV_RUNS, not a hardcoded "runs": slurm/env.sh points it at scratch precisely
+    # because a sweep writes hundreds of megabytes of JSONL, and home has a quota.
+    runs_root = Path(os.environ.get("DXENV_RUNS", "runs"))
+    print(f"trajectory store: {runs_root / meta.run_id}")
+    with TrajectoryStore(meta, root=runs_root) as store:
         # k=1 for the deterministic policies: k identical samples would report a group
         # std of 0 and invite the reader to conclude something about spread.
         rows.append(evaluate("prior", constant_factory(PriorPolicy), records, 1, ctx, store, 1))
