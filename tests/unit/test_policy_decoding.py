@@ -405,3 +405,33 @@ def test_sampled_actions_still_satisfy_the_bounded_schema(menu, taxonomy, schema
     for _ in range(200):
         wire = sample_wire_action(rng, menu=menu, taxonomy=taxonomy)
         validator.validate(wire)
+
+
+def test_reasoning_pattern_excludes_control_characters(schema) -> None:
+    """A raw newline inside a JSON string is invalid JSON, and the first pattern allowed it.
+
+    `[^"\\\\]` bounds length and blocks quotes, and still lets the model emit a literal
+    newline -- structurally fine to the grammar, rejected by every JSON parser. Excluding
+    backslash also means the model cannot write the escape, so the characters themselves
+    have to be forbidden.
+    """
+    import re
+
+    for variant in schema["oneOf"]:
+        rx = re.compile(variant["properties"]["reasoning"]["pattern"])
+        assert rx.match("Ordering a CBC to separate anemia from infection.")
+        assert rx.match("其他内容")  # non-ASCII prose is fine
+        assert not rx.match("text\nmore")
+        assert not rx.match("text\tmore")
+        assert not rx.match("text\rmore")
+
+
+def test_control_characters_do_not_kill_a_run(menu, taxonomy) -> None:
+    """Belt to the pattern's braces: backends vary in how much regex they honour.
+
+    A raw newline in a reasoning string is unambiguous, so parsing it changes nothing
+    about which action was chosen -- unlike a fallback action, which would substitute a
+    decision the policy never made and is still refused.
+    """
+    raw = '{"kind": "abstain", "reasoning": "belief is diffuse\nand the budget is spent"}'
+    assert parse_action(raw, menu, taxonomy).kind == "abstain"
