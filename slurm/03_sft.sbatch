@@ -58,7 +58,13 @@ dxenv_notify_on_exit "SFT"
 
 pip install -q -e ".[dev,train]"
 
-python scripts/build_sft_data.py --n 2000 --frozen-split --out runs/phase3/sft.jsonl
+# Skip the rebuild if the set is already there. It costs 2000 teacher traces and 16000
+# rollouts, and a resubmission after a TRL-API failure should not pay for it twice.
+if [[ -s runs/phase3/sft.jsonl ]]; then
+    echo "reusing existing runs/phase3/sft.jsonl ($(wc -l < runs/phase3/sft.jsonl) examples)"
+else
+    python scripts/build_sft_data.py --n 2000 --frozen-split --out runs/phase3/sft.jsonl
+fi
 
 python - <<PY
 from pathlib import Path

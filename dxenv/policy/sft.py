@@ -358,23 +358,34 @@ class SFTConfig:
 def _trl_config(trl_config_cls: Any, cfg: SFTConfig, bf16: bool) -> Any:
     """Build TRL's SFTConfig, passing only the fields this TRL version accepts.
 
-    TRL renames these often -- `max_seq_length` became `max_length`, `completion_only_loss`
-    arrived mid-series -- and an unknown keyword is a TypeError twenty minutes into a job
-    holding a GPU. Filtering against the installed signature turns that into a printed
-    line naming what was dropped.
+    TRL renames and removes these often -- `max_seq_length` became `max_length`,
+    `completion_only_loss` arrived mid-series, and on the cluster's TRL even `warmup_ratio`
+    is gone, which suggests SFTConfig no longer subclasses TrainingArguments. An unknown
+    keyword is a TypeError twenty minutes into a job holding a GPU.
 
-    `completion_only_loss` is the one that matters and is checked explicitly: without it
-    the run trains on the prompt, and the prompt is a 13k-character menu and label list the
-    model never has to generate. That would not crash -- it would just waste the run.
+    Fields are split by what it costs to lose them:
+
+      ESSENTIAL   these DEFINE the run. Silently falling back to TRL's defaults would
+                  produce a differently-trained adapter that looks fine -- and CLAUDE.md
+                  8.4 is specific that this SFT is deliberately undertrained, which is a
+                  property of the learning rate and epoch count and nothing else. Missing
+                  one raises.
+      OPTIONAL    dropped with a printed note. `completion_only_loss` gets its own warning
+                  because losing it changes WHAT IS TRAINED rather than stopping the run.
+
+    On any drop the full accepted signature is printed, so one failed run reveals the
+    whole API rather than one field per submission.
     """
     import inspect
 
-    wanted = {
+    essential = {
         "output_dir": str(cfg.output_dir),
         "num_train_epochs": cfg.epochs,
         "learning_rate": cfg.learning_rate,
         "per_device_train_batch_size": cfg.batch_size,
         "gradient_accumulation_steps": cfg.grad_accum,
+    }
+    optional = {
         "max_length": cfg.max_seq_len,
         "warmup_ratio": cfg.warmup_ratio,
         "bf16": bf16,
@@ -385,19 +396,33 @@ def _trl_config(trl_config_cls: Any, cfg: SFTConfig, bf16: bool) -> Any:
         "completion_only_loss": True,
     }
     accepted = set(inspect.signature(trl_config_cls).parameters)
-    dropped = sorted(k for k in wanted if k not in accepted)
+
+    if "max_length" not in accepted and "max_seq_length" in accepted:
+        optional["max_seq_length"] = optional.pop("max_length")  # the older spelling
+
+    missing = sorted(k for k in essential if k not in accepted)
+    dropped = sorted(k for k in optional if k not in accepted)
+    if missing or dropped:
+        print(f"[dxenv] TRL {trl_config_cls.__name__} accepts: {sorted(accepted)}")
+    if missing:
+        raise SFTError(
+            f"this TRL does not accept {missing}, which define the run -- epochs and "
+            f"learning rate are the whole content of 'deliberately undertrained' "
+            f"(CLAUDE.md 8.4). Falling back to TRL's defaults would produce an adapter "
+            f"that looks trained and is not the one intended. Map these onto the "
+            f"accepted names printed above rather than dropping them."
+        )
     if dropped:
-        print(f"[dxenv] TRL {trl_config_cls.__name__} does not accept {dropped}; dropping")
+        print(f"[dxenv] dropping unsupported TRL options: {dropped}")
     if "completion_only_loss" in dropped:
         print(
             "[dxenv] WARNING: this TRL cannot restrict loss to the completion, so the run "
-            "will also train on the prompt -- a 13k-character menu the model never has to "
-            "generate. Check TRL's current name for that option before trusting the "
-            "resulting adapter."
+            "would also train on the prompt -- a 13k-character menu the model never has "
+            "to generate. Find its current name in the signature above before trusting "
+            "the adapter."
         )
-    if "max_length" in dropped and "max_seq_length" in accepted:
-        wanted["max_seq_length"] = wanted.pop("max_length")  # the older spelling
-    return trl_config_cls(**{k: v for k, v in wanted.items() if k in accepted})
+    payload = {**essential, **optional}
+    return trl_config_cls(**{k: v for k, v in payload.items() if k in accepted})
 
 
 def train_lora(dataset: SFTDataset, cfg: SFTConfig) -> Path:  # pragma: no cover - GPU only
