@@ -23,6 +23,61 @@ from dxenv.policy.llm import LLMPolicy, VLLMBackend
 from dxenv.policy.rollout import RolloutContext, rollout_once
 
 
+def probe_vllm_api() -> None:
+    """Report the shape of vLLM's structured-output API before using it.
+
+    This code was written against vLLM ~0.6 and the cluster has 0.28 -- roughly twenty
+    releases, over which the structured-output parameter has been renamed at least once
+    (`guided_decoding` -> `structured_outputs`, `GuidedDecodingParams` ->
+    `StructuredOutputsParams`). On a batch scheduler every fix costs a queue wait, so this
+    prints what the INSTALLED version actually offers rather than only what failed. One
+    run is then enough to correct the call sites.
+
+    Never raises: a probe that aborts the job it is diagnosing is worse than no probe.
+    """
+    import inspect
+
+    print("--- vLLM API probe ---")
+    try:
+        import vllm
+
+        print(f"vllm {vllm.__version__}")
+    except Exception as exc:
+        print(f"could not import vllm: {type(exc).__name__}: {exc}")
+        return
+
+    for mod, names in [
+        ("vllm.sampling_params",
+         ["GuidedDecodingParams", "StructuredOutputsParams"]),
+        ("vllm", ["LLM", "SamplingParams"]),
+    ]:
+        try:
+            m = __import__(mod, fromlist=["_"])
+            present = [n for n in names if hasattr(m, n)]
+            missing = [n for n in names if not hasattr(m, n)]
+            print(f"{mod}: present={present} missing={missing}")
+        except Exception as exc:
+            print(f"{mod}: import failed ({type(exc).__name__})")
+
+    try:
+        from vllm import LLM, SamplingParams
+
+        params = set(inspect.signature(SamplingParams).parameters)
+        interesting = sorted(
+            p for p in params
+            if any(k in p for k in ("guided", "structured", "json", "grammar", "seed", "n"))
+        )
+        print(f"SamplingParams structured-output params: {interesting}")
+        print(f"LLM.__init__ params: {sorted(inspect.signature(LLM.__init__).parameters)}")
+        if hasattr(LLM, "chat"):
+            print(f"LLM.chat params: {sorted(inspect.signature(LLM.chat).parameters)}")
+        else:
+            print("LLM has NO .chat method")
+    except Exception as exc:
+        print(f"signature inspection failed: {type(exc).__name__}: {exc}")
+    print("--- end probe ---\n")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
@@ -31,6 +86,8 @@ def main() -> None:
     ap.add_argument("--max-model-len", type=int, default=8192)
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.60)
     args = ap.parse_args()
+
+    probe_vllm_api()
 
     schema = action_json_schema()
     print(f"grammar fingerprint {schema_fingerprint(schema)}, "
