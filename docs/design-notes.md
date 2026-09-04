@@ -222,6 +222,67 @@ is the posterior" would overstate it.
 
 ---
 
+## Gate B — the prompted baseline FAILS, and how it fails is the finding
+
+Qwen2.5-7B-Instruct, 200 patients, k=8, temperature 1.0, constrained decoding.
+
+| policy | mean R | best@8 | group std | tests |
+|---|---|---|---|---|
+| prior (blank-record floor) | −0.018 | −0.018 | 0.000 | 0.00 |
+| random_schema | −0.385 | −0.044 | 0.322 | 0.37 |
+| **prompted 7B** | **−0.689** | **−0.480** | 0.147 | 5.47 |
+| vitals-only Bayes (the bar) | +0.675 | +0.675 | 0.000 | 0.00 |
+| greedy Bayes | +1.183 | +1.183 | 0.000 | 5.76 |
+
+`GATE B: FAIL` — pass@8 0.030 vs pass@1 0.000, a gap of +0.030 against a required +0.15.
+The other five criteria pass: schema validity 1.0000 over ~8,700 generations, group std
+0.147 with 15.5% degenerate groups, calibration margin +1.0045, headroom 2.41.
+
+**The 7B is worse than guessing the base rate**, and worse than a grammar sampler with no
+model behind it. Cost and turns account for only ~−0.335 of the −0.689 (5.47 tests × λ ×
+median price, plus μ·turns), so the diagnosis term is ≈ −0.354 against the prior's ≈ 0.00.
+It orders about as many tests as the greedy baseline; it is not shotgunning. It is
+confidently wrong — and the calibration margin says so from the other direction, since
+collapsing its report onto its argmax would cost a full point.
+
+### Why: the baselines have oracle access and the model cannot
+
+Every patient whose best-of-8 cleared the bar:
+
+    chronic_kidney_disease  ×2      type_2_diabetes  ×2
+    major_depressive_disorder       streptococcal_pharyngitis
+
+All urgency 2, all commoner than average (prior weight 2.83 vs 2.12), and every one a
+condition where a single test is close to DEFINITIONAL — HbA1c, creatinine, rapid strep, a
+depression screen. Those are exactly the cases where invented likelihood parameters cannot
+diverge much from real clinical knowledge, because the mapping is definitional rather than
+statistical.
+
+That is the whole result. `obs_model`'s parameters are invented (see Known gaps), and the
+Bayes baselines are parameterised from the very generative model that produced the data.
+The LLM reasons from real clinical statistics that this environment does not share, so its
+knowledge actively misleads rather than merely failing to help. Gate A established the
+signal is learnable — but by a classifier TRAINED on this data.
+
+**So this environment measures "can a policy learn this synthetic mapping", not "can it
+diagnose".** That is legitimate for studying RL dynamics and it is the honest caveat on
+every number here. It also means no zero-shot model was ever going to clear a bar set by
+an oracle-parameterised baseline, which is worth stating plainly rather than discovering
+twice.
+
+### What it says about the next step
+
+First sample beat the blank-record floor on 1 patient of 200; best-of-8 on 17. Thin, but
+not nothing — and `corr(group_std, best) = +0.435`, with the 31 zero-spread patients
+scoring worse, so the diversity RLVR needs tracks the outcomes it needs.
+
+The gate's pre-registered action is SFT, and it is the right instrument for this specific
+failure: the teacher HAS the true observation model, so it can teach the mapping the base
+model has no way to know. The gate was not amended — "the bar is unfair to a zero-shot
+model" is true, was knowable in advance, and produces the same next step either way.
+
+---
+
 ## Phase 4 — GRPO
 
 The loop runs end to end today, against a grammar-sampling backend, on the frozen split:
