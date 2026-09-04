@@ -376,3 +376,32 @@ def test_truncation_is_retried_once_before_failing(fixture_corpus, catalog, menu
     action = policy.act(episode, episode.reset())
     assert backend.calls == 2
     assert action.kind == "abstain"
+
+
+def test_reasoning_length_is_bounded_by_the_grammar_not_just_documented(schema) -> None:
+    """`maxLength` is advisory; `pattern` is compiled into the grammar and actually binds.
+
+    This distinction cost two GPU jobs. With only maxLength the decoder happily ran past
+    2876 tokens mid-sentence, because grammar backends constrain structure and not string
+    length -- so the cap has to be expressed as something the grammar can enforce.
+    """
+    import re
+
+    from dxenv.policy.decoding import MAX_REASONING_CHARS
+
+    for variant in schema["oneOf"]:
+        prop = variant["properties"]["reasoning"]
+        assert "pattern" in prop, "reasoning is length-bounded only by a comment"
+        rx = re.compile(prop["pattern"])
+        assert rx.match("Ordering a CBC to separate anemia from infection.")
+        assert rx.match("x" * MAX_REASONING_CHARS)
+        assert not rx.match("x" * (MAX_REASONING_CHARS + 1))
+
+
+def test_sampled_actions_still_satisfy_the_bounded_schema(menu, taxonomy, schema) -> None:
+    """The grammar sampler must keep producing schema-valid output under the new pattern."""
+    rng = np.random.default_rng(7)
+    validator = jsonschema.Draft202012Validator(schema)
+    for _ in range(200):
+        wire = sample_wire_action(rng, menu=menu, taxonomy=taxonomy)
+        validator.validate(wire)

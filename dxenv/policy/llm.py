@@ -33,6 +33,7 @@ what is verifiable from the record.
 
 from __future__ import annotations
 
+import inspect
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -179,15 +180,27 @@ class VLLMBackend:
                 raise BackendError(
                     "vLLM is not installed. On a CUDA host: pip install -e '.[gpu]'"
                 ) from exc
-            self._engine = LLM(
-                model=self.model,
-                dtype=self.dtype,
-                max_model_len=self.max_model_len,
-                gpu_memory_utilization=self.gpu_memory_utilization,
-                tensor_parallel_size=self.tensor_parallel_size,
-                enable_lora=self.lora_path is not None,
-                max_lora_rank=64,
-            )
+            kwargs: dict[str, Any] = {
+                "model": self.model,
+                "dtype": self.dtype,
+                "max_model_len": self.max_model_len,
+                "gpu_memory_utilization": self.gpu_memory_utilization,
+                "tensor_parallel_size": self.tensor_parallel_size,
+                "enable_lora": self.lora_path is not None,
+                "max_lora_rank": 64,
+            }
+            # Compact JSON. vLLM's structured-output engine permits arbitrary whitespace
+            # by default, and the model duly spends tokens pretty-printing -- observed
+            # emitting '{\n  "kind": ...' and running past 2876 tokens. Indentation
+            # carries no information the parser uses.
+            #
+            # Passed by name only if this vLLM accepts it, and as a dict rather than an
+            # imported config class, because the class has moved between releases and a
+            # wrong import path would abort engine startup -- another queue cycle to
+            # discover.
+            if "structured_outputs_config" in inspect.signature(LLM.__init__).parameters:
+                kwargs["structured_outputs_config"] = {"disable_any_whitespace": True}
+            self._engine = LLM(**kwargs)
         return self._engine
 
     def _structured_output_kwargs(self) -> dict[str, Any]:  # pragma: no cover - CUDA only
