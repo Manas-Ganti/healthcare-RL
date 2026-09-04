@@ -130,3 +130,97 @@ def test_lockstep_across_patients(fixture_corpus, ctx) -> None:
     assert len(rollouts) == 12
     assert backend.widths[0] == 12
     assert {r.patient_id for r in rollouts} == {r.patient_id for r, _, _ in specs}
+
+
+def test_misaligned_batch_output_is_caught(fixture_corpus, catalog, episode_config,
+                                           menu) -> None:
+    """A reordered batch must halt, not be scored.
+
+    This is the failure mode batching introduces and the one nothing downstream could
+    detect: every action would still be legal, every episode would still terminate, and
+    the rewards would simply be attached to the wrong trajectories. It would read as a
+    weak policy rather than a broken harness.
+    """
+    from dxenv.env.episode import DiagnosticEpisode
+    from dxenv.policy.llm import Generation
+
+    shared = RandomBackend(seed=1)
+
+    class ReversesOutputs:
+        """Returns the right answers in the wrong order."""
+
+        def generate(self, conversations, **kw):
+            out = shared.generate(conversations, **kw)
+            prompts = [
+                "\n".join(m["content"] for m in conv) for conv in conversations
+            ]
+            # Attach each generation to the PREVIOUS conversation's prompt.
+            return [
+                [Generation(text=o[0].text, prompt=prompts[(i + 1) % len(prompts)])]
+                for i, o in enumerate(out)
+            ]
+
+    policies = [LLMPolicy(backend=b, menu=menu) for b in (ReversesOutputs(),) * 2]
+    policies[1].backend = policies[0].backend  # one shared backend
+    episodes = [
+        DiagnosticEpisode(fixture_corpus[i], seed=i, config=episode_config,
+                          catalog=catalog, budget=100.0)
+        for i in range(2)
+    ]
+    observations = [e.reset() for e in episodes]
+    with pytest.raises(BackendError, match="misaligned"):
+        batched_act(policies, episodes, observations)
+
+
+def test_aligned_batch_output_passes_the_guard(fixture_corpus, catalog, episode_config,
+                                               menu) -> None:
+    """The guard must not fire on correct ordering, or it would be useless."""
+    from dxenv.env.episode import DiagnosticEpisode
+    from dxenv.policy.llm import Generation
+
+    inner = RandomBackend(seed=1)
+
+    class EchoesPrompt:
+        def generate(self, conversations, **kw):
+            out = inner.generate(conversations, **kw)
+            return [
+                [Generation(text=o[0].text,
+                            prompt="\n".join(m["content"] for m in conv))]
+                for o, conv in zip(out, conversations, strict=True)
+            ]
+
+    backend = EchoesPrompt()
+    policies = [LLMPolicy(backend=backend, menu=menu) for _ in range(2)]
+    episodes = [
+        DiagnosticEpisode(fixture_corpus[i], seed=i, config=episode_config,
+                          catalog=catalog, budget=100.0)
+        for i in range(2)
+    ]
+    actions = batched_act(policies, episodes, [e.reset() for e in episodes])
+    assert len(actions) == 2
+
+
+def test_each_prompt_names_only_its_own_patient(fixture_corpus, ctx) -> None:
+    """Batched episodes must not contaminate each other's prompts.
+
+    Every prompt opens with a "CASE <patient_ref>" line, so this checks directly that the
+    conversation handed to the model for episode i describes patient i and nobody else --
+    the property that makes a batched rollout equivalent to a sequential one.
+    """
+    backend = RandomBackend(seed=2)
+    specs = [(rec, 500 + i, 200.0) for i, rec in enumerate(fixture_corpus[:6])]
+    rollouts = rollout_lockstep(specs, lambda s: LLMPolicy(backend=backend, seed=s), ctx)
+
+    seen = 0
+    for rollout in rollouts:
+        for gen in rollout.generations:
+            text = "\n".join(m["content"] for m in gen["prompt"])
+            cases = {
+                line.split()[1] for line in text.split("\n") if line.startswith("CASE ")
+            }
+            assert cases == {rollout.patient_id}, (
+                f"prompt for {rollout.patient_id} names {cases}"
+            )
+            seen += 1
+    assert seen > 0
+    assert len({r.patient_id for r in rollouts}) == len(rollouts)
