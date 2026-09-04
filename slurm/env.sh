@@ -46,6 +46,51 @@ export DXENV_VENV="${DXENV_VENV:-$DXENV_REPO/.venv}"
 
 module reset >/dev/null 2>&1 || true
 
+# --- CUDA toolkit for JIT-compiled kernels ---------------------------------------------
+# vLLM's default sampler is FlashInfer, which JIT-COMPILES a kernel during engine warmup
+# and needs nvcc. On this cluster that fails with
+#     RuntimeError: Could not find nvcc and default cuda_home='/usr/local/cuda' doesn't exist
+# because the compute nodes carry a driver but no toolkit at that path.
+#
+# Two independent fixes, both applied, because either alone can lapse:
+#
+#   1. Point CUDA_HOME at a real toolkit. Try the module system first, then the toolkit
+#      pip installed alongside torch (nvidia-cuda-nvcc ships one inside site-packages),
+#      which needs no module at all and matches the wheel's CUDA version by construction.
+#   2. Turn the FlashInfer sampler off. It is a throughput optimisation; the PyTorch
+#      sampler is numerically equivalent and compiles nothing. This is what actually makes
+#      the run independent of whether a toolkit is present, so it is the default rather
+#      than the fallback. Set DXENV_FLASHINFER=1 to opt back in once a toolkit is
+#      confirmed working.
+module load CUDA >/dev/null 2>&1 || module load cuda >/dev/null 2>&1 || true
+
+if [[ -z "${CUDA_HOME:-}" ]] && command -v nvcc >/dev/null 2>&1; then
+    CUDA_HOME="$(dirname "$(dirname "$(command -v nvcc)")")"
+    export CUDA_HOME
+fi
+if [[ -z "${CUDA_HOME:-}" && -x "$DXENV_VENV/bin/python" ]]; then
+    _pip_nvcc="$("$DXENV_VENV/bin/python" - <<'PY' 2>/dev/null || true
+import pathlib, sys
+root = pathlib.Path(sys.prefix)
+for base in root.glob("lib/python*/site-packages/nvidia/cuda_nvcc"):
+    if (base / "bin" / "nvcc").exists():
+        print(base)
+        break
+PY
+)"
+    if [[ -n "$_pip_nvcc" ]]; then
+        export CUDA_HOME="$_pip_nvcc"
+        export PATH="$CUDA_HOME/bin:$PATH"
+    fi
+    unset _pip_nvcc
+fi
+[[ -n "${CUDA_HOME:-}" ]] && echo "[dxenv] CUDA_HOME=$CUDA_HOME"
+
+if [[ "${DXENV_FLASHINFER:-0}" != "1" ]]; then
+    export VLLM_USE_FLASHINFER_SAMPLER=0
+fi
+# ---------------------------------------------------------------------------------------
+
 # --- interpreter, asserted -------------------------------------------------------------
 # The sibling project lost a full node allocation to this class of bug twice: `source
 # activate` reporting success in a non-interactive batch shell without switching

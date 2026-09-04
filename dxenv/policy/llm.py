@@ -33,6 +33,7 @@ what is verifiable from the record.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -148,8 +149,29 @@ class VLLMBackend:
     the old adapter and nothing says so. That failure is silent and it turns a GRPO run
     into rejection sampling against a frozen policy."""
 
+    use_flashinfer_sampler: bool = False
+    """Whether to let vLLM use FlashInfer's sampler.
+
+    Off by default. FlashInfer JIT-COMPILES its sampling kernel during engine warmup and
+    needs nvcc; on a cluster whose compute nodes carry a driver but no CUDA toolkit that
+    aborts engine startup outright:
+
+        RuntimeError: Could not find nvcc and default cuda_home='/usr/local/cuda'
+                      doesn't exist
+
+    The PyTorch sampler is numerically equivalent and compiles nothing, so the default
+    costs some throughput and buys independence from whether a toolkit happens to be
+    installed. Set True once one is confirmed working.
+    """
+
     def _lazy_engine(self) -> Any:  # pragma: no cover - requires CUDA
         if self._engine is None:
+            # Set BEFORE importing vllm, which reads it at import time. Done here rather
+            # than only in slurm/env.sh so the backend is correct when used directly --
+            # a library that needs a sibling shell script to work is a library with an
+            # undocumented dependency.
+            if not self.use_flashinfer_sampler:
+                os.environ.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
             try:
                 from vllm import LLM
             except ImportError as exc:

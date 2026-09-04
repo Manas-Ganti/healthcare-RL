@@ -38,6 +38,10 @@ def probe_vllm_api() -> None:
     import inspect
 
     print("--- vLLM API probe ---")
+    import os
+
+    print(f"VLLM_USE_FLASHINFER_SAMPLER={os.environ.get('VLLM_USE_FLASHINFER_SAMPLER', '<unset>')} "
+          f"CUDA_HOME={os.environ.get('CUDA_HOME', '<unset>')}")
     try:
         import vllm
 
