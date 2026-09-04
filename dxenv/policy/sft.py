@@ -355,6 +355,51 @@ class SFTConfig:
             )
 
 
+def _trl_config(trl_config_cls: Any, cfg: SFTConfig, bf16: bool) -> Any:
+    """Build TRL's SFTConfig, passing only the fields this TRL version accepts.
+
+    TRL renames these often -- `max_seq_length` became `max_length`, `completion_only_loss`
+    arrived mid-series -- and an unknown keyword is a TypeError twenty minutes into a job
+    holding a GPU. Filtering against the installed signature turns that into a printed
+    line naming what was dropped.
+
+    `completion_only_loss` is the one that matters and is checked explicitly: without it
+    the run trains on the prompt, and the prompt is a 13k-character menu and label list the
+    model never has to generate. That would not crash -- it would just waste the run.
+    """
+    import inspect
+
+    wanted = {
+        "output_dir": str(cfg.output_dir),
+        "num_train_epochs": cfg.epochs,
+        "learning_rate": cfg.learning_rate,
+        "per_device_train_batch_size": cfg.batch_size,
+        "gradient_accumulation_steps": cfg.grad_accum,
+        "max_length": cfg.max_seq_len,
+        "warmup_ratio": cfg.warmup_ratio,
+        "bf16": bf16,
+        "logging_steps": 10,
+        "save_strategy": "epoch",
+        "seed": cfg.seed,
+        "report_to": [],
+        "completion_only_loss": True,
+    }
+    accepted = set(inspect.signature(trl_config_cls).parameters)
+    dropped = sorted(k for k in wanted if k not in accepted)
+    if dropped:
+        print(f"[dxenv] TRL {trl_config_cls.__name__} does not accept {dropped}; dropping")
+    if "completion_only_loss" in dropped:
+        print(
+            "[dxenv] WARNING: this TRL cannot restrict loss to the completion, so the run "
+            "will also train on the prompt -- a 13k-character menu the model never has to "
+            "generate. Check TRL's current name for that option before trusting the "
+            "resulting adapter."
+        )
+    if "max_length" in dropped and "max_seq_length" in accepted:
+        wanted["max_seq_length"] = wanted.pop("max_length")  # the older spelling
+    return trl_config_cls(**{k: v for k, v in wanted.items() if k in accepted})
+
+
 def train_lora(dataset: SFTDataset, cfg: SFTConfig) -> Path:  # pragma: no cover - GPU only
     """LoRA SFT over the examples. Imports torch/peft/trl lazily; a CUDA host only.
 
@@ -376,8 +421,17 @@ def train_lora(dataset: SFTDataset, cfg: SFTConfig) -> Path:  # pragma: no cover
 
     dataset.validate()
     tok = AutoTokenizer.from_pretrained(cfg.model)
+    # PROMPT-COMPLETION format, not a single `messages` list. `completion_only_loss`
+    # applies to prompt-completion datasets; with a conversational messages-only dataset
+    # TRL cannot tell where the prompt ends, so it either ignores the flag or raises.
+    # Getting it wrong would train on the prompt -- and the prompt is a 13k-character menu
+    # and label list that the model never has to generate, so most of the gradient would
+    # go into reproducing fixed text.
     rows = [
-        {"messages": [*e.messages, {"role": "assistant", "content": e.completion}]}
+        {
+            "prompt": [dict(m) for m in e.messages],
+            "completion": [{"role": "assistant", "content": e.completion}],
+        }
         for e in dataset.examples
     ]
     ds = Dataset.from_list(rows)
@@ -393,24 +447,7 @@ def train_lora(dataset: SFTDataset, cfg: SFTConfig) -> Path:  # pragma: no cover
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
                             "gate_proj", "up_proj", "down_proj"],
         ),
-        args=TRLConfig(
-            output_dir=str(cfg.output_dir),
-            num_train_epochs=cfg.epochs,
-            learning_rate=cfg.learning_rate,
-            per_device_train_batch_size=cfg.batch_size,
-            gradient_accumulation_steps=cfg.grad_accum,
-            max_length=cfg.max_seq_len,
-            warmup_ratio=cfg.warmup_ratio,
-            bf16=cfg.bf16 and torch.cuda.is_available(),
-            logging_steps=10,
-            save_strategy="epoch",
-            seed=cfg.seed,
-            report_to=[],
-            # Loss on the completion only. Training on the prompt would spend most of the
-            # gradient on reproducing the 149-label menu, which is fixed text the model
-            # never has to generate.
-            completion_only_loss=True,
-        ),
+        args=_trl_config(TRLConfig, cfg, bf16=cfg.bf16 and torch.cuda.is_available()),
     )
     trainer.train()
     out = cfg.output_dir / "final"
