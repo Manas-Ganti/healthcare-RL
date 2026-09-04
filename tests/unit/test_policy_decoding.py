@@ -303,3 +303,76 @@ def test_unknown_structured_output_api_raises_rather_than_degrading(monkeypatch)
 
     with pytest.raises(BackendError, match="neither"):
         VLLMBackend(model="x")._structured_output_kwargs()
+
+
+def test_token_budget_covers_the_widest_action(taxonomy) -> None:
+    """The budget must fit a full `diagnose`, which is the worst case by a wide margin.
+
+    512 did not, and the resulting truncated prefix was reported as "the grammar was not
+    applied" -- structurally valid JSON, unfinished string, and a diagnosis pointing at
+    the wrong component entirely.
+    """
+    import json
+
+    import numpy as np
+    from dxenv.policy.decoding import (
+        DEFAULT_MAX_LABELS,
+        DEFAULT_MAX_TOKENS,
+        MAX_REASONING_CHARS,
+    )
+    from dxenv.policy.sft import soft_label_wire
+
+    belief = np.full(len(taxonomy), 1.0 / len(taxonomy))
+    widest = soft_label_wire(belief, "x" * MAX_REASONING_CHARS, taxonomy, DEFAULT_MAX_LABELS)
+    serialized = json.dumps(widest, separators=(",", ":"))
+    # ~4 characters per token is the usual rule of thumb for English + JSON punctuation.
+    assert len(serialized) / 4 < DEFAULT_MAX_TOKENS, (
+        f"widest action is ~{len(serialized) // 4} tokens against a budget of "
+        f"{DEFAULT_MAX_TOKENS}"
+    )
+
+
+def test_truncated_generation_is_reported_as_truncation(fixture_corpus, catalog, menu,
+                                                        episode_config) -> None:
+    """Test the diagnosis, not just the failure: a length-stop must not read as a grammar
+    failure, and must not be silently replaced by a fallback action."""
+    from dxenv.env.episode import DiagnosticEpisode
+    from dxenv.policy.decoding import DecodingError
+    from dxenv.policy.llm import Generation, LLMPolicy
+
+    class AlwaysTruncates:
+        def generate(self, conversations, **kw):  # noqa: ARG002 - Backend protocol
+            return [[Generation(text='{"kind":"order_test","reason', finish_reason="length")]]
+
+    policy = LLMPolicy(backend=AlwaysTruncates(), menu=menu)
+    episode = DiagnosticEpisode(fixture_corpus[0], seed=0, config=episode_config,
+                                catalog=catalog, budget=100.0)
+    obs = episode.reset()
+    with pytest.raises(DecodingError, match="truncated prefix"):
+        policy.act(episode, obs)
+
+
+def test_truncation_is_retried_once_before_failing(fixture_corpus, catalog, menu,
+                                                   episode_config) -> None:
+    """Finishing the same constrained generation is not choosing a different action."""
+    from dxenv.env.episode import DiagnosticEpisode
+    from dxenv.policy.llm import Generation, LLMPolicy
+
+    class TruncatesOnce:
+        def __init__(self):
+            self.calls = 0
+
+        def generate(self, conversations, **kw):  # noqa: ARG002 - Backend protocol
+            self.calls += 1
+            if self.calls == 1:
+                return [[Generation(text='{"kind":"abst', finish_reason="length")]]
+            return [[Generation(text='{"kind":"abstain","reasoning":"budget exhausted"}',
+                                finish_reason="stop")]]
+
+    backend = TruncatesOnce()
+    policy = LLMPolicy(backend=backend, menu=menu)
+    episode = DiagnosticEpisode(fixture_corpus[0], seed=0, config=episode_config,
+                                catalog=catalog, budget=100.0)
+    action = policy.act(episode, episode.reset())
+    assert backend.calls == 2
+    assert action.kind == "abstain"
