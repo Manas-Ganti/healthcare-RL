@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -33,6 +33,7 @@ from dxenv.env.episode import (
 )
 from dxenv.env.obs_model import ObservationModel, build_observation_model
 from dxenv.policy.baselines import Policy, run_episode
+from dxenv.policy.llm import LLMPolicy, batched_act
 from dxenv.reward.engine import (
     GroundTruth,
     RewardBreakdown,
@@ -193,6 +194,87 @@ def rollout_once(
     )
 
 
+def _score_episode(
+    record: PatientRecord, episode: DiagnosticEpisode, policy: Any, seed: int,
+    ctx: RolloutContext,
+) -> Rollout:
+    assert ctx.reward_config is not None
+    trajectory = episode.trajectory()
+    breakdown = score_trajectory(
+        trajectory,
+        GroundTruth(record.condition, record.analytes, record.allergies),
+        ctx.reward_config,
+        taxonomy=ctx.taxonomy, catalog=ctx.catalog, model=ctx.model,
+    )
+    return Rollout(
+        patient_id=record.patient_id, condition=record.condition, seed=seed,
+        budget=float(trajectory["budget"]), trajectory=trajectory, breakdown=breakdown,
+        generations=tuple(getattr(policy, "generations", ()) or ()),
+        hard_ceiling=ctx.hard, expected_ceiling=ctx.expected_for(record),
+    )
+
+
+def rollout_lockstep(
+    specs: Sequence[tuple[PatientRecord, int, float]],
+    policy_factory: PolicyFactory,
+    ctx: RolloutContext,
+) -> list[Rollout]:
+    """Run many episodes together, one backend call per ROUND of turns.
+
+    This is what makes the GPU path affordable. Driving episodes one at a time issues a
+    single-sequence request per turn and wastes most of the device: Gate B needs
+    4,800-12,800 calls and a 2000-step GRPO run needs ~640,000, which is ~356 hours
+    sequentially. The episodes are independent at any given turn, so they batch.
+
+    Episodes finish at different turns, so each round batches only the ones still running
+    -- the batch shrinks as episodes terminate, which is exactly right: a finished episode
+    must not be stepped again.
+
+    Falls back to the sequential path for policies without a shared LLM backend; the
+    heuristic baselines are pure CPU and gain nothing from batching.
+    """
+    episodes, policies, records, seeds = [], [], [], []
+    for record, seed, budget in specs:
+        policies.append(policy_factory(seed))
+        episodes.append(DiagnosticEpisode(
+            record, seed=seed, config=ctx.episode_config, catalog=ctx.catalog, budget=budget
+        ))
+        records.append(record)
+        seeds.append(seed)
+
+    # Batching is only a win when the policies share ONE engine. A factory that builds a
+    # fresh backend per policy (the heuristic baselines, and the grammar sampler used in
+    # tests) has nothing to gain and would break the shared-engine assumption, so it takes
+    # the sequential path and behaves exactly as before.
+    llm_policies = [p for p in policies if isinstance(p, LLMPolicy)]
+    shareable = (
+        len(llm_policies) == len(policies) > 0
+        and len({id(p.backend) for p in llm_policies}) == 1
+    )
+    if not shareable:
+        return [
+            rollout_once(rec, policy_factory, seed, ctx, budget=budget)
+            for rec, seed, budget in specs
+        ]
+
+    observations = [ep.reset() for ep in episodes]
+    done = [False] * len(episodes)
+    while not all(done):
+        live = [i for i, d in enumerate(done) if not d]
+        actions = batched_act(
+            [cast(LLMPolicy, policies[i]) for i in live],
+            [episodes[i] for i in live],
+            [observations[i] for i in live],
+        )
+        for i, action in zip(live, actions, strict=True):
+            observations[i], done[i], _ = episodes[i].step(action)
+
+    return [
+        _score_episode(records[i], episodes[i], policies[i], seeds[i], ctx)
+        for i in range(len(episodes))
+    ]
+
+
 def rollout_group(
     record: PatientRecord,
     policy_factory: PolicyFactory,
@@ -211,10 +293,9 @@ def rollout_group(
         raise ValueError(f"group size must be >= 1, got {k}")
     if budget is None:
         budget = sample_budget(ctx.episode_config, np.random.default_rng(base_seed))
-    return [
-        rollout_once(record, policy_factory, base_seed + i, ctx, budget=budget)
-        for i in range(k)
-    ]
+    return rollout_lockstep(
+        [(record, base_seed + i, budget) for i in range(k)], policy_factory, ctx
+    )
 
 
 def group_rewards(rollouts: Sequence[Rollout]) -> npt.NDArray[np.float64]:

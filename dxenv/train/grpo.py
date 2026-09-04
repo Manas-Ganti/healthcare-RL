@@ -50,7 +50,12 @@ from dxenv.data.splits import Splits, assert_eval_frozen, guard_training_access
 from dxenv.data.store import RunMeta, TrajectoryStore
 from dxenv.data.taxonomy import load_taxonomy
 from dxenv.env.episode import EpisodeConfig, load_episode_config, sample_budget
-from dxenv.policy.rollout import Rollout, RolloutContext, group_rewards, rollout_group
+from dxenv.policy.rollout import (
+    Rollout,
+    RolloutContext,
+    group_rewards,
+    rollout_lockstep,
+)
 from dxenv.train.curriculum import Curriculum, Stage, load_curriculum, load_training_ids
 from dxenv.train.monitors import (
     CostDistributionMonitor,
@@ -325,12 +330,27 @@ class GRPOTrainer:
         all_sequences: list[TrainingSequence] = []
         group_stds: list[float] = []
 
+        # One lockstep run for the WHOLE step -- every patient's every sample together --
+        # rather than a batched call per group. The episodes are independent at any given
+        # turn, and the difference is the difference between a feasible run and an
+        # infeasible one: 8 patients x 8 samples is 64 sequences per round instead of 8,
+        # against a sequential cost of roughly 356 hours for a 2000-step run.
+        specs: list[tuple[PatientRecord, int, float]] = []
+        bounds: list[tuple[int, int]] = []
         for j, rec in enumerate(records):
             base_seed = int(self.rng.integers(0, 2**31 - 1))
             budget = sample_budget(stage_cfg, np.random.default_rng(base_seed))
-            rollouts = rollout_group(
-                rec, self.policy_factory, cfg.k, base_seed + j * cfg.k, ctx, budget=budget
+            start = len(specs)
+            specs.extend(
+                (rec, base_seed + j * cfg.k + i, budget) for i in range(cfg.k)
             )
+            bounds.append((start, len(specs)))
+
+        flat = rollout_lockstep(specs, self.policy_factory, ctx)
+
+        for start, end in bounds:
+            rollouts = flat[start:end]
+            budget = rollouts[0].budget
             rewards = group_rewards(rollouts)
 
             for r in rollouts:

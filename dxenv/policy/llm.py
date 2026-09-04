@@ -76,9 +76,18 @@ class Backend(Protocol):
         conversations: Sequence[Sequence[dict[str, str]]],
         n: int = 1,
         temperature: float = 1.0,
-        max_tokens: int = 512,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         seed: int | None = None,
-    ) -> list[list[Generation]]: ...
+        seeds: Sequence[int | None] | None = None,
+    ) -> list[list[Generation]]:
+        """`seeds` supplies one seed PER conversation.
+
+        That is what lets a batched call stay exactly as reproducible as the sequential
+        calls it replaces -- vLLM accepts a list of SamplingParams aligned with the
+        conversations, so throughput does not have to be traded against determinism.
+        `seed` remains for the single-conversation case.
+        """
+        ...
 
 
 @dataclass(slots=True)
@@ -100,7 +109,13 @@ class RandomBackend:
         temperature: float = 1.0,  # noqa: ARG002 - a uniform sampler has no temperature
         max_tokens: int = DEFAULT_MAX_TOKENS,  # noqa: ARG002
         seed: int | None = None,
+        seeds: Sequence[int | None] | None = None,
     ) -> list[list[Generation]]:
+        if seeds is not None:
+            return [
+                self.generate([c], n=n, seed=sd)[0]
+                for c, sd in zip(conversations, seeds, strict=True)
+            ]
         rng = np.random.default_rng(seed) if seed is not None else self._rng
         out: list[list[Generation]] = []
         for conv in conversations:
@@ -130,7 +145,16 @@ class VLLMBackend:
 
     model: str
     lora_path: str | None = None
-    max_model_len: int = 8192
+    max_model_len: int = 16384
+    """Context window. 8192 left only ~540 tokens of margin.
+
+    Measured: the prompt is ~10.5k characters at turn 0 and ~14.3k with every analyte
+    revealed, which at a pessimistic 3 chars/token is 4,777 prompt tokens; add a
+    truncation retry at 2,876 and the worst case reaches 7,653 against a 8,192 limit. The
+    menu and the 149-label list dominate and are full of underscored slugs, which
+    tokenize worse than prose. Overflow is a hard failure mid-run, and KV cache is not
+    the scarce resource on an 80GB card running a 7B.
+    """
     gpu_memory_utilization: float = 0.55
     """Deliberately below vLLM's own default.
 
@@ -271,17 +295,24 @@ class VLLMBackend:
         temperature: float = 1.0,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         seed: int | None = None,
+        seeds: Sequence[int | None] | None = None,
     ) -> list[list[Generation]]:
         from vllm import SamplingParams
 
         engine = self._lazy_engine()
-        params = SamplingParams(
-            n=n,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            seed=seed,
-            **self._structured_output_kwargs(),
-        )
+        constraint = self._structured_output_kwargs()
+
+        def _params(one_seed: int | None) -> Any:
+            return SamplingParams(
+                n=n, temperature=temperature, max_tokens=max_tokens,
+                seed=one_seed, **constraint,
+            )
+
+        # vLLM accepts a LIST of SamplingParams aligned with the conversations, so a
+        # batched call still gives each sequence its own seed. Without that, batching
+        # would buy throughput by giving up per-episode reproducibility, and those two
+        # are not worth trading against each other.
+        params: Any = [_params(x) for x in seeds] if seeds is not None else _params(seed)
         lora = None
         if self.lora_path is not None:
             from vllm.lora.request import LoRARequest
@@ -381,3 +412,80 @@ class LLMPolicy:
             }
         )
         return action
+
+
+def batched_act(
+    policies: Sequence[LLMPolicy],
+    episodes: Sequence[DiagnosticEpisode],
+    observations: Sequence[Observation],
+) -> list[Action]:
+    """One backend call for many episodes' current turns.
+
+    This is what makes the project run at all. Driving episodes one at a time issues a
+    single-sequence request per turn, which wastes almost all of a GPU: measured against
+    the plan, Gate B needs 4,800-12,800 calls and a GRPO run needs ~640,000, which is
+    ~356 hours sequentially. vLLM's whole advantage is batching, and the episodes in a
+    group -- and across patients in a GRPO step -- are independent at any given turn.
+
+    Every policy must share one backend, since the point is to reach it once. Per-episode
+    seeds are preserved through `seeds`, so this is faster than the sequential path
+    without being less reproducible than it.
+    """
+    if not policies:
+        return []
+    backend = policies[0].backend
+    if any(p.backend is not backend for p in policies):
+        raise BackendError(
+            "batched_act needs every policy to share one backend; separate backends mean "
+            "separate engines, which is the thing this exists to avoid."
+        )
+
+    convs = [
+        chat_messages(obs, menu=p.menu, taxonomy=p.taxonomy)
+        for p, obs in zip(policies, observations, strict=True)
+    ]
+    seeds = [
+        None if p.seed is None else p.seed + obs.turn
+        for p, obs in zip(policies, observations, strict=True)
+    ]
+    budget = max(p.max_tokens for p in policies)
+    gens = [g[0] for g in backend.generate(
+        convs, n=1, temperature=policies[0].temperature, max_tokens=budget, seeds=seeds
+    )]
+
+    # Retry only the truncated ones, and only once. Same reasoning as the single-episode
+    # path: finishing a constrained generation is not choosing a different action.
+    stuck = [i for i, g in enumerate(gens) if g.finish_reason == "length"]
+    if stuck:
+        retry = backend.generate(
+            [convs[i] for i in stuck], n=1, temperature=policies[0].temperature,
+            max_tokens=budget * 2, seeds=[seeds[i] for i in stuck],
+        )
+        for slot, out in zip(stuck, retry, strict=True):
+            gens[slot] = out[0]
+
+    actions: list[Action] = []
+    for policy, episode, obs, gen in zip(policies, episodes, observations, gens, strict=True):
+        if gen.finish_reason == "length":
+            raise DecodingError(
+                f"turn {obs.turn} of {episode.record.patient_id}: no valid action within "
+                f"{budget * 2} tokens; the output is a truncated prefix. Raise "
+                f"max_tokens or shorten the reasoning the prompt asks for. Do NOT add a "
+                f"fallback action. Got: {gen.text[:200]!r}"
+            )
+        try:
+            action = parse_action(gen.text, policy.menu, policy.taxonomy)
+        except DecodingError as exc:
+            raise DecodingError(
+                f"turn {obs.turn} of {episode.record.patient_id}: {exc}"
+            ) from exc
+        policy.generations.append(
+            {
+                "turn": obs.turn,
+                "prompt": [dict(m) for m in convs[len(actions)]],
+                "completion": gen.text,
+                "finish_reason": gen.finish_reason,
+            }
+        )
+        actions.append(action)
+    return actions
