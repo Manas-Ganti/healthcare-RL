@@ -48,9 +48,6 @@ def main() -> None:
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.40,
                     help="vLLM's share. The trainer needs the rest, and unlike the "
                          "engine it cannot be shrunk by configuration.")
-    ap.add_argument("--micro-batch-size", type=int, default=2,
-                    help="sequences per forward/backward; the gradient still covers the "
-                         "whole step")
     ap.add_argument("--dry-run", action="store_true",
                     help="full loop, real rewards and monitors, no gradient step")
     args = ap.parse_args()
@@ -66,7 +63,6 @@ def main() -> None:
         k=args.k, patients_per_step=args.patients_per_step, max_steps=args.steps,
         temperature=args.temperature, learning_rate=args.lr, kl_coef=args.kl_coef,
         seed=args.seed, root=args.root,
-        micro_batch_size=args.micro_batch_size,
     )
 
     if args.dry_run:

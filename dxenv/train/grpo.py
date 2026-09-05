@@ -90,19 +90,13 @@ class GRPOConfig:
     lora_rank: int = 32
     lora_alpha: int = 64
 
-    micro_batch_size: int = 2
-    """Sequences per forward/backward. The gradient still covers the whole step.
-
-    Not a tuning knob -- the first GPU run OOMed without it. `update` used to run every
-    sequence in one forward pass: ~115 turns per step, each carrying a ~4,000-token prompt,
-    is ~460k tokens of activations at once. With vLLM already holding 45GiB of KV cache on
-    the same card there is nowhere near room for that, and the failure is at the first
-    backward pass rather than anywhere informative.
-    """
-
     gradient_checkpointing: bool = True
-    """Recompute activations instead of storing them. Roughly 30% slower per step and it
-    is what makes a 4,000-token prompt affordable at all next to a co-located engine."""
+    """Recompute activations instead of storing them. Roughly 30% slower per step, and
+    what makes a 4,000-token prompt affordable next to a co-located engine.
+
+    There is no micro-batch size: `update` accumulates one SEQUENCE at a time. Batching
+    two 4,000-token sequences doubles a 1.1GiB logits tensor to save nothing, since the
+    gradient is token-weighted either way."""
 
     monitor_every: int = 10
     save_every: int = 100
@@ -631,72 +625,83 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
             lr=self.config.learning_rate,
         )
 
-    def _completion_logprobs(self, model: Any, batch: Sequence[TrainingSequence]) -> Any:
-        import torch
+    def _encode(self, seq: TrainingSequence) -> tuple[Any, int]:
+        """Tokenise one (prompt, completion) pair and say where the completion starts.
 
-        texts, starts = [], []
-        for b in batch:
-            prompt = self._tok.apply_chat_template(
-                list(b.messages), tokenize=False, add_generation_prompt=True
-            )
-            starts.append(len(self._tok(prompt).input_ids))
-            texts.append(prompt + b.completion)
-        enc = self._tok(texts, return_tensors="pt", padding=True, truncation=True).to("cuda")
-        logits = model(**enc).logits[:, :-1]
-        labels = enc.input_ids[:, 1:]
-        logp = torch.log_softmax(logits.float(), dim=-1).gather(
-            -1, labels.unsqueeze(-1)
-        ).squeeze(-1)
-        # Mask the prompt: gradient on the completion only. Training on the prompt spends
-        # most of it reproducing the 149-label menu, which is fixed text.
-        mask = torch.zeros_like(logp)
-        for i, s in enumerate(starts):
-            mask[i, max(s - 1, 0) :] = enc.attention_mask[i, 1:][max(s - 1, 0) :]
-        return logp, mask
+        Separate from the forward pass because completion length is a property of the
+        TOKENISER, not the model. The first version ran a full 4,000-token forward pass
+        purely to size a mask -- for a number that costs microseconds on the CPU.
+        """
+        prompt = self._tok.apply_chat_template(
+            list(seq.messages), tokenize=False, add_generation_prompt=True
+        )
+        start = len(self._tok(prompt).input_ids)
+        ids = self._tok(prompt + seq.completion, return_tensors="pt").input_ids
+        return ids, start
+
+    def _completion_logprobs(self, model: Any, seq: TrainingSequence) -> Any:
+        """Log-probs of the COMPLETION tokens only, for one sequence.
+
+        Two details here decide whether a 7B trainer fits beside a vLLM engine.
+
+        The logits tensor is [T, vocab] and unavoidable: 4,000 tokens against Qwen's 152k
+        vocabulary is 1.1GiB in bf16. What IS avoidable is running log_softmax over all of
+        it. Only the ~300 completion positions are ever read, and materialising a float32
+        log_softmax over the whole sequence cost 4.5GiB per forward for nothing -- 2.3GiB
+        for the .float() copy and 2.3GiB for the result. Slicing first makes it ~180MiB.
+
+        `cross_entropy` rather than log_softmax-then-gather because it is fused and never
+        materialises the intermediate. Its negation is exactly the log-prob of the
+        observed token.
+        """
+        import torch
+        import torch.nn.functional as F  # noqa: N812
+
+        ids, start = self._encode(seq)
+        ids = ids.to("cuda")
+        if ids.shape[1] <= start:  # nothing was generated
+            return torch.zeros(0, device="cuda")
+        logits = model(input_ids=ids).logits[0]
+        # Position t predicts token t+1, so the first completion target sits at `start`
+        # and is predicted by the logits at `start - 1`.
+        sel = logits[start - 1 : ids.shape[1] - 1]
+        labels = ids[0, start:]
+        del logits
+        return -F.cross_entropy(sel.float(), labels, reduction="none")
 
     def update(self, batch: Sequence[TrainingSequence]) -> dict[str, float]:
-        """One optimiser step over the whole batch, accumulated in micro-batches.
+        """One optimiser step over the batch, accumulated sequence by sequence.
 
-        The gradient is identical to processing the batch at once -- each micro-batch's
-        loss is scaled by its share of the step's tokens before backward, so the sum is
-        the same weighted mean. What changes is peak memory, which is the only reason a
-        7B trainer fits beside a vLLM engine holding 45GiB of KV cache.
+        The gradient equals a single pass: each sequence's loss is scaled by its share of
+        the step's completion tokens before backward, so the accumulation is the same
+        token-weighted mean. Scaling by 1/n instead would reweight the step toward short
+        sequences -- a change to what is optimised, not to how it is computed.
         """
         import torch
 
         self._lazy()
-        micro = max(1, self.config.micro_batch_size)
-        chunks = [batch[i : i + micro] for i in range(0, len(batch), micro)]
 
-        # Token counts first, so each chunk can be weighted by its true share. Scaling by
-        # 1/len(chunks) instead would silently reweight the step toward short sequences.
+        # Token counts from the tokeniser alone: no forward pass, no GPU memory.
+        lengths = [max(0, ids.shape[1] - start) for ids, start in map(self._encode, batch)]
+        denom = float(max(sum(lengths), 1))
+
         self._opt.zero_grad(set_to_none=True)
-        total_tokens = 0.0
-        masks = []
-        for chunk in chunks:
-            with torch.no_grad():
-                _, mask = self._completion_logprobs(self._model, chunk)
-            masks.append(float(mask.sum().item()))
-            total_tokens += masks[-1]
-        denom = max(total_tokens, 1.0)
-
         loss_sum = kl_sum = 0.0
-        for chunk, chunk_tokens in zip(chunks, masks, strict=True):
-            if chunk_tokens == 0:
+        counted = 0
+        for seq, n_tokens in zip(batch, lengths, strict=True):
+            if n_tokens == 0:
                 continue
-            adv = torch.tensor(
-                [b.advantage for b in chunk], device="cuda"
-            ).unsqueeze(-1)
-            logp, mask = self._completion_logprobs(self._model, chunk)
+            logp = self._completion_logprobs(self._model, seq)
             with torch.no_grad(), self._model.disable_adapter():
-                ref_logp, _ = self._completion_logprobs(self._model, chunk)
+                ref_logp = self._completion_logprobs(self._model, seq)
             old_logp = logp.detach()
 
-            # One inner epoch, so `old_logp` is this batch's own detached logprobs and the
-            # ratio is identically 1 -- the clipping is INERT and this reduces to a plain
-            # policy gradient. Correct for single-epoch GRPO, and written out because
-            # clip_eps otherwise looks like it is doing something.
+            # One inner epoch, so `old_logp` is this sequence's own detached logprobs and
+            # the ratio is identically 1 -- the clipping is INERT and this reduces to a
+            # plain policy gradient. Correct for single-epoch GRPO, and written out
+            # because clip_eps otherwise looks like it is doing something.
             ratio = torch.exp(logp - old_logp)
+            adv = seq.advantage
             surrogate = torch.min(
                 ratio * adv,
                 torch.clamp(ratio, 1 - self.config.clip_eps, 1 + self.config.clip_eps) * adv,
@@ -706,23 +711,24 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
             # reference.
             r = ref_logp - logp
             kl = torch.exp(r) - r - 1.0
-            loss = -((surrogate - self.config.kl_coef * kl) * mask).sum() / denom
+            loss = -(surrogate - self.config.kl_coef * kl).sum() / denom
             loss.backward()
 
             loss_sum += float(loss.item())
-            kl_sum += float((kl * mask).sum().item())
-            del logp, ref_logp, kl, surrogate, ratio, loss
-            torch.cuda.empty_cache()
+            kl_sum += float(kl.sum().item())
+            counted += n_tokens
+            del logp, ref_logp, kl, surrogate, ratio, loss, old_logp
 
         torch.nn.utils.clip_grad_norm_(
             [p for p in self._model.parameters() if p.requires_grad], 1.0
         )
         self._opt.step()
+        torch.cuda.empty_cache()
         return {
             "loss": loss_sum,
             "kl": kl_sum / denom,
             "n_sequences": float(len(batch)),
-            "n_micro_batches": float(len(chunks)),
+            "n_tokens": float(counted),
         }
 
     def sync_rollout_weights(self) -> None:
