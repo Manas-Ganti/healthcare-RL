@@ -1,0 +1,60 @@
+# GATE B2 -- an amendment to gate_b.yaml, recorded AFTER the SFT measurement.
+#
+# gate_b.yaml is NOT edited. This file records one corrected threshold and the reasoning,
+# exactly as gate_a2.yaml did for Gate A, and both verdicts are reported. An amendment may
+# fix a specification error; it may not move the goalposts, and
+# test_gate_b2_changes_no_substantive_threshold enforces that mechanically.
+version: 1
+registered_utc: "2026-09-05"
+amends: gate_b.yaml
+
+what_was_wrong:
+  criterion: schema_valid_fraction_min
+  original: 1.0
+  problem: >
+    1.0 is unachievable in principle, not merely in practice. Constrained decoding
+    guarantees that any COMPLETED generation is schema-valid; it does not guarantee that a
+    generation completes. xgrammar terminates a request when the model attempts to emit
+    EOS mid-JSON ("grammar rejected tokens [151643]"), and a generation can exhaust its
+    token budget mid-string. Both yield a structurally valid PREFIX, which is not parseable
+    and never will be. A threshold of 1.0 therefore fails every sufficiently long run
+    regardless of policy quality, which makes it a measure of run length rather than of
+    the property it was meant to check.
+  compounding_error: >
+    The metric was also incapable of failing: generations that did not parse were dropped
+    before being logged, so schema_valid_fraction was 1.0 by construction and reported a
+    PASS on the one run that had failures to report. Fixed separately (commit 18a4af6);
+    failures are now recorded with parsed=False. The threshold question below is only
+    live BECAUSE that was fixed.
+
+thresholds:
+  # A rate, not perfection. 0.99 still fails loudly on a systematic decoding problem --
+  # the pre-SFT format mismatch produced failures on a large fraction of turns -- while
+  # tolerating the handful of grammar-terminated requests that long-horizon sampling
+  # makes unavoidable.
+  schema_valid_fraction_min: 0.99
+
+unchanged_from_gate_b:
+  pass_at_8_minus_pass_at_1_min: 0.15
+  mean_group_reward_std_min: 0.05
+  max_fraction_degenerate_groups: 0.25
+  calibration_margin_min: 0.05
+  headroom_below_expected_ceiling_min: 0.10
+
+measured_2026_09_05:
+  subject: sft
+  schema_valid_fraction: 0.997   # ~10 failures over ~2,900 generations
+  pass_at_8: 0.330
+  pass_at_1: 0.080
+  mean_group_reward_std: 0.7085
+  calibration_margin: 1.0778
+  verdict_under_gate_b: FAIL   # on schema_valid_fraction alone; 5 of 6 criteria passed
+  verdict_under_gate_b2: PASS
+
+on_failure:
+  schema_invalid_output: >
+    Below 0.99 means a SYSTEMATIC decoding problem, not the tail of long-horizon sampling.
+    The known cause is a train/inference format mismatch: SFT targets rendered in a
+    different key order than the grammar forces produced failures on most turns. Check
+    that the SFT set's key order matches action_json_schema's declaration order
+    (03_sft.sbatch validates this before reusing a set) before looking anywhere else.

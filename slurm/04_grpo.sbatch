@@ -67,7 +67,7 @@ python scripts/train_grpo.py \
     --run-id grpo \
     --model "$DXENV_MODEL" \
     $REF_ARG \
-    --steps 2000 \
+    --steps "${DXENV_GRPO_STEPS:-400}" \
     --k 8 --patients-per-step 8 \
     --root "$DXENV_RUNS" \
     --resume
@@ -75,14 +75,15 @@ python scripts/train_grpo.py \
 # Requeue automatically while there are steps left. Comment out to drive it by hand.
 STATE="$DXENV_RUNS/grpo/trainer_state.json"
 if [[ -f "$STATE" ]]; then
+  TARGET="${DXENV_GRPO_STEPS:-400}"
   DONE=$(python -c "import json;print(json.load(open('$STATE'))['step_index'])")
   STAGE=$(python -c "import json;print(json.load(open('$STATE'))['stage'])")
-  echo "completed $DONE / 2000 steps"
-  if (( DONE < 2000 )); then
+  echo "completed $DONE / $TARGET steps"
+  if (( DONE < TARGET )); then
     echo "requeueing"
     NEXT=$(sbatch --parsable "$0" "$REF_ADAPTER")
-    dxenv_notify --status start --title "GRPO $DONE/2000"         --text "stage ${STAGE} · requeued as job ${NEXT}"
+    dxenv_notify --status start --title "GRPO $DONE/$TARGET"         --text "stage ${STAGE} · requeued as job ${NEXT}"
   else
-    dxenv_notify --status ok --title "GRPO complete"         --text "$DONE/2000 steps, final stage ${STAGE}"
+    dxenv_notify --status ok --title "GRPO complete"         --text "$DONE/$TARGET steps, final stage ${STAGE}"
   fi
 fi

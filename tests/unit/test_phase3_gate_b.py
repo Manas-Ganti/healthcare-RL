@@ -147,3 +147,27 @@ def test_gate_b_checker_reports_missing_criteria_as_skipped() -> None:
     assert statuses["headroom below ceiling"] == "SKIP"
     assert statuses["schema-valid output"] == "SKIP"
     assert statuses["pass@k above pass@1"] == "PASS"
+
+
+def test_gate_b2_changes_no_substantive_threshold() -> None:
+    """An amendment may fix a specification error; it may not move the goalposts."""
+    gate2 = Path("dxenv/configs/gate_b2.yaml")
+    if not gate2.exists():
+        pytest.skip("no amendment recorded")
+    gate, amend = yaml.safe_load(GATE.read_text()), yaml.safe_load(gate2.read_text())
+
+    for key, value in amend["unchanged_from_gate_b"].items():
+        assert gate["thresholds"][key] == value, (
+            f"gate_b2 claims {key} is unchanged but gate_b says "
+            f"{gate['thresholds'][key]} vs {value}"
+        )
+    # The substantive criteria -- the ones that decide whether GRPO has anything to
+    # sharpen -- must not appear among the amended thresholds.
+    for key in ("pass_at_8_minus_pass_at_1_min", "mean_group_reward_std_min",
+                "calibration_margin_min", "headroom_below_expected_ceiling_min"):
+        assert key not in amend["thresholds"], f"gate_b2 moved a substantive threshold: {key}"
+
+    assert amend["amends"] == "gate_b.yaml"
+    assert amend["what_was_wrong"]["original"] == gate["thresholds"]["schema_valid_fraction_min"]
+    # Both verdicts must be recorded, not just the favourable one.
+    assert amend["measured_2026_09_05"]["verdict_under_gate_b"] == "FAIL"
