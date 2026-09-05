@@ -90,6 +90,15 @@ class GRPOConfig:
     lora_rank: int = 32
     lora_alpha: int = 64
 
+    trainer_device: str = "cuda:0"
+    """Where the TRAINER lives. Point it at a second GPU to end the contention entirely.
+
+    vLLM and the trainer sharing one card is the whole reason for three OOMs: the engine
+    takes a fixed share up front and the trainer gets whatever is left. On a node with
+    `gpu:a100:8` requesting two cards costs nothing extra in queue terms and removes the
+    interaction. `--gres=gpu:a100:2` with `--trainer-device cuda:1`.
+    """
+
     gradient_checkpointing: bool = True
     """Recompute activations instead of storing them. Roughly 30% slower per step, and
     what makes a 4,000-token prompt affordable next to a co-located engine.
@@ -590,16 +599,29 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
                 "loop itself runs against NullUpdater anywhere."
             ) from exc
 
+        dev = self.config.trainer_device
+
+        def _mem(label: str) -> None:
+            """Report allocation at each stage. Two OOMs were diagnosed by guessing at
+            which stage the memory went; one run that says so directly is cheaper than
+            another queue cycle."""
+            idx = torch.device(dev).index or 0
+            print(f"[dxenv] {label:34s} allocated={torch.cuda.memory_allocated(idx)/2**30:6.2f} "
+                  f"GiB reserved={torch.cuda.memory_reserved(idx)/2**30:6.2f} GiB", flush=True)
+
         self._tok = AutoTokenizer.from_pretrained(self.config.model)
+        _mem("before loading the model")
         base: Any = AutoModelForCausalLM.from_pretrained(
-            self.config.model, dtype=torch.bfloat16, device_map="cuda"
+            self.config.model, dtype=torch.bfloat16, device_map={"": dev}
         )
+        _mem("after from_pretrained")
         if self.config.reference_adapter is not None:
             # MERGED, not held as an adapter. The KL is measured against the policy GRPO
             # started from; an unmerged adapter would leave the reference as the base
             # model, and the run would be free to drift away from SFT for nothing.
             base = PeftModel.from_pretrained(base, str(self.config.reference_adapter))
             base = base.merge_and_unload()
+            _mem("after merging the SFT adapter")
         # There is NO separate reference model. `get_peft_model` injects the LoRA layers
         # into `base` IN PLACE, so holding `self._ref = base` aliases the very modules
         # the adapter now lives in -- the reference forward pass would run with the
@@ -617,9 +639,34 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
                                 "gate_proj", "up_proj", "down_proj"],
             ),
         )
+        # Enforced, not requested. `dtype=` was renamed from `torch_dtype` in
+        # transformers 5, merge_and_unload can upcast, and PEFT creates its own weights in
+        # fp32 -- any of which silently doubles a 7B from 14GiB to 28GiB. The observed
+        # 44GiB trainer footprint is what fp32 weights plus activations looks like.
+        dtypes = {q.dtype for q in self._model.parameters()}
+        print(f"[dxenv] parameter dtypes after PEFT: {sorted(str(d) for d in dtypes)}",
+              flush=True)
+        if torch.float32 in dtypes:
+            n_fp32 = sum(q.numel() for q in self._model.parameters()
+                         if q.dtype == torch.float32 and not q.requires_grad)
+            if n_fp32 > 10**8:
+                print(f"[dxenv] casting {n_fp32/1e9:.1f}B frozen fp32 parameters to bf16",
+                      flush=True)
+                for q in self._model.parameters():
+                    if q.dtype == torch.float32 and not q.requires_grad:
+                        q.data = q.data.to(torch.bfloat16)
+        _mem("after get_peft_model")
+
         if self.config.gradient_checkpointing:
-            self._model.gradient_checkpointing_enable()
+            # use_reentrant=False is required for checkpointing to actually save memory
+            # under PEFT; the reentrant path skips segments whose inputs do not require
+            # grad, which for a frozen base with LoRA adapters is most of them.
+            self._model.gradient_checkpointing_enable(
+                gradient_checkpointing_kwargs={"use_reentrant": False}
+            )
             self._model.enable_input_require_grads()
+            self._model.config.use_cache = False
+            print("[dxenv] gradient checkpointing enabled (use_reentrant=False)", flush=True)
         self._opt = torch.optim.AdamW(
             [p for p in self._model.parameters() if p.requires_grad],
             lr=self.config.learning_rate,
@@ -658,9 +705,9 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         import torch.nn.functional as F  # noqa: N812
 
         ids, start = self._encode(seq)
-        ids = ids.to("cuda")
+        ids = ids.to(self.config.trainer_device)
         if ids.shape[1] <= start:  # nothing was generated
-            return torch.zeros(0, device="cuda")
+            return torch.zeros(0, device=self.config.trainer_device)
         logits = model(input_ids=ids).logits[0]
         # Position t predicts token t+1, so the first completion target sits at `start`
         # and is predicted by the logits at `start - 1`.
