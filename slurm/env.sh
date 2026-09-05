@@ -25,6 +25,10 @@ export HF_HOME="${HF_HOME:-$DXENV_SCRATCH/hf}"
 # HF_HUB_ENABLE_HF_TRANSFER is deprecated in current huggingface_hub and warns on
 # every invocation; Xet replaced it.
 export HF_XET_HIGH_PERFORMANCE=1
+# Recommended by the allocator itself in the OOM this run hit: with a vLLM engine and a
+# trainer sharing one card, the free memory is fragmented and a large contiguous request
+# fails even when the total is available.
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 export TORCHINDUCTOR_CACHE_DIR="$DXENV_SCRATCH/inductor"
 export OUTLINES_CACHE_DIR="$DXENV_SCRATCH/outlines"
 

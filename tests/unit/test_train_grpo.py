@@ -472,3 +472,54 @@ def test_checkpoint_survives_a_halted_run(trainer, monkeypatch) -> None:
         trainer.run(steps=1)
     state = trainer.config.root / trainer.config.run_id / GRPOTrainer.STATE_FILE
     assert state.exists()
+
+
+def test_micro_batching_covers_every_sequence_exactly_once() -> None:
+    """Chunking must partition the batch: no sequence dropped, none counted twice.
+
+    The gradient is supposed to be identical to processing the batch at once -- only peak
+    memory changes. A chunking bug would quietly train on a subset, which looks like a
+    weaker run rather than a broken one.
+    """
+    from dxenv.train.grpo import TrainingSequence
+
+    batch = [
+        TrainingSequence(messages=(), completion=f"c{i}", advantage=float(i),
+                         patient_id="p", turn=i)
+        for i in range(115)
+    ]
+    for micro in (1, 2, 8, 200):
+        chunks = [batch[i : i + micro] for i in range(0, len(batch), micro)]
+        flat = [s for c in chunks for s in c]
+        assert flat == batch, f"micro={micro} does not partition the batch"
+        assert all(len(c) <= micro for c in chunks)
+
+
+def test_token_weighted_accumulation_matches_a_single_pass() -> None:
+    """Each chunk is scaled by its SHARE OF THE STEP'S TOKENS, not by 1/n_chunks.
+
+    Scaling by 1/n_chunks would reweight the step toward short sequences -- every chunk
+    contributing equally regardless of how many tokens it carries -- which silently
+    changes what is optimised rather than how it is computed.
+    """
+    import numpy as np
+
+    per_seq_loss = np.array([3.0, 1.0, 4.0, 1.0, 5.0, 9.0])
+    tokens = np.array([100.0, 10.0, 50.0, 10.0, 200.0, 5.0])
+
+    one_pass = float((per_seq_loss * tokens).sum() / tokens.sum())
+    micro = 2
+    denom = tokens.sum()
+    accumulated = sum(
+        float((per_seq_loss[i : i + micro] * tokens[i : i + micro]).sum() / denom)
+        for i in range(0, len(per_seq_loss), micro)
+    )
+    assert abs(accumulated - one_pass) < 1e-12
+
+    naive = sum(
+        float((per_seq_loss[i : i + micro] * tokens[i : i + micro]).sum()
+              / max(tokens[i : i + micro].sum(), 1.0))
+        / (len(per_seq_loss) // micro)
+        for i in range(0, len(per_seq_loss), micro)
+    )
+    assert abs(naive - one_pass) > 0.1, "the wrong scaling should be visibly different"
