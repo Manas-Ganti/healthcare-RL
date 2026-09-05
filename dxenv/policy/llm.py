@@ -404,15 +404,34 @@ class LLMPolicy:
                 "decoding this cannot happen, so it means the schema was not applied to "
                 "this call -- fix the backend rather than adding a fallback action."
             ) from exc
-        self.generations.append(
-            {
-                "turn": obs.turn,
-                "prompt": [dict(m) for m in conv],
-                "completion": gen.text,
-                "finish_reason": gen.finish_reason,
-            }
-        )
+        _record(self, obs, conv, gen, parsed=True)
         return action
+
+
+def _record(
+    policy: LLMPolicy,
+    obs: Observation,
+    conv: Sequence[dict[str, str]],
+    gen: Generation,
+    parsed: bool,
+) -> None:
+    """Log a generation, INCLUDING the ones that failed to parse.
+
+    Failures used to be dropped on the floor, which quietly made
+    `schema_valid_fraction` 1.0 by construction: the metric could only see generations
+    that had already parsed. Gate B scores that criterion against a threshold of 1.0, so
+    it reported a pass it was incapable of failing -- a detector that cannot fire, which
+    CLAUDE.md 11 names as worse than no detector at all.
+    """
+    policy.generations.append(
+        {
+            "turn": obs.turn,
+            "prompt": [dict(m) for m in conv],
+            "completion": gen.text,
+            "finish_reason": gen.finish_reason,
+            "parsed": parsed,
+        }
+    )
 
 
 def batched_act(
@@ -499,6 +518,7 @@ def batched_act(
             if strict:
                 raise DecodingError(message)
             print(f"[dxenv] {message}", flush=True)
+            _record(policy, obs, convs[i], gen, parsed=False)
             actions.append(None)
             continue
         try:
@@ -515,15 +535,9 @@ def batched_act(
             # but not fatal to the run that would have reported it.
             print(f"[dxenv] decode failure, {episode.record.patient_id} turn {obs.turn}: "
                   f"{gen.text[:120]!r}", flush=True)
+            _record(policy, obs, convs[i], gen, parsed=False)
             actions.append(None)
             continue
-        policy.generations.append(
-            {
-                "turn": obs.turn,
-                "prompt": [dict(m) for m in convs[i]],
-                "completion": gen.text,
-                "finish_reason": gen.finish_reason,
-            }
-        )
+        _record(policy, obs, convs[i], gen, parsed=True)
         actions.append(action)
     return actions

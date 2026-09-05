@@ -224,3 +224,44 @@ def test_each_prompt_names_only_its_own_patient(fixture_corpus, ctx) -> None:
             seen += 1
     assert seen > 0
     assert len({r.patient_id for r in rollouts}) == len(rollouts)
+
+
+def test_failed_generations_are_recorded_so_the_metric_can_fail(
+    fixture_corpus, catalog, episode_config, menu
+) -> None:
+    """schema_valid_fraction must be able to report less than 1.
+
+    Failures used to be dropped before being logged, so the metric only ever saw
+    generations that had already parsed and reported 1.0 by construction. Gate B scores it
+    against a threshold of 1.0 and therefore passed a criterion it could not fail --
+    a detector that cannot fire, which is worse than no detector (CLAUDE.md 11).
+    """
+    from dxenv.env.episode import DiagnosticEpisode
+    from dxenv.policy.llm import Generation
+
+    class EmitsGarbage:
+        def generate(self, conversations, **kw):  # noqa: ARG002 - Backend protocol
+            return [[Generation(text="not json at all", finish_reason="stop")]
+                    for _ in conversations]
+
+    backend = EmitsGarbage()
+    policies = [LLMPolicy(backend=backend, menu=menu)]
+    episodes = [DiagnosticEpisode(fixture_corpus[0], seed=0, config=episode_config,
+                                  catalog=catalog, budget=100.0)]
+    actions = batched_act(policies, episodes, [episodes[0].reset()], strict=False)
+
+    assert actions == [None]
+    assert len(policies[0].generations) == 1, "the failure was not logged"
+    assert policies[0].generations[0]["parsed"] is False
+    valid = [bool(g.get("parsed", True)) for g in policies[0].generations]
+    assert sum(valid) / len(valid) < 1.0, "the metric still cannot report a failure"
+
+
+def test_successful_generations_are_flagged_parsed(fixture_corpus, ctx) -> None:
+    backend = RandomBackend(seed=4)
+    rollouts = rollout_group(
+        fixture_corpus[0], lambda s: LLMPolicy(backend=backend, seed=s), 4, 3, ctx,
+        budget=200.0,
+    )
+    flags = [g["parsed"] for r in rollouts for g in r.generations]
+    assert flags and all(flags)
