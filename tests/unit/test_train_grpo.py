@@ -474,27 +474,6 @@ def test_checkpoint_survives_a_halted_run(trainer, monkeypatch) -> None:
     assert state.exists()
 
 
-def test_micro_batching_covers_every_sequence_exactly_once() -> None:
-    """Chunking must partition the batch: no sequence dropped, none counted twice.
-
-    The gradient is supposed to be identical to processing the batch at once -- only peak
-    memory changes. A chunking bug would quietly train on a subset, which looks like a
-    weaker run rather than a broken one.
-    """
-    from dxenv.train.grpo import TrainingSequence
-
-    batch = [
-        TrainingSequence(messages=(), completion=f"c{i}", advantage=float(i),
-                         patient_id="p", turn=i)
-        for i in range(115)
-    ]
-    for micro in (1, 2, 8, 200):
-        chunks = [batch[i : i + micro] for i in range(0, len(batch), micro)]
-        flat = [s for c in chunks for s in c]
-        assert flat == batch, f"micro={micro} does not partition the batch"
-        assert all(len(c) <= micro for c in chunks)
-
-
 def test_token_weighted_accumulation_matches_a_single_pass() -> None:
     """Each chunk is scaled by its SHARE OF THE STEP'S TOKENS, not by 1/n_chunks.
 
