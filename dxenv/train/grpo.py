@@ -601,6 +601,14 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
 
         dev = self.config.trainer_device
 
+        # Make cuda:1 the CURRENT device for this process, not merely the one the weights
+        # were placed on. Anything that allocates without naming a device -- inside
+        # transformers, PEFT, or the optimiser -- goes to the current device, which
+        # defaults to cuda:0 where vLLM lives. Mixing tensors across cards surfaces as an
+        # asynchronous "illegal memory access" reported at whatever call happens next,
+        # which is why the traceback pointed at empty_cache() rather than at the fault.
+        torch.cuda.set_device(dev)
+
         def _mem(label: str) -> None:
             """Report allocation at each stage. Two OOMs were diagnosed by guessing at
             which stage the memory went; one run that says so directly is cheaper than
@@ -727,6 +735,7 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         import torch
 
         self._lazy()
+        torch.cuda.set_device(self.config.trainer_device)
 
         # Token counts from the tokeniser alone: no forward pass, no GPU memory.
         lengths = [max(0, ids.shape[1] - start) for ids, start in map(self._encode, batch)]
