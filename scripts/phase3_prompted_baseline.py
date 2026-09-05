@@ -104,9 +104,10 @@ def evaluate(
             # Under guided decoding every generation parses by construction; this counts
             # it anyway, because "by construction" is a claim about the backend and the
             # gate is where that claim gets checked rather than assumed.
-            schema_valid.extend(
-                _parses(g["completion"], ctx) for g in r.generations
-            )
+            # Read the recorded flag rather than re-parsing. Re-parsing only ever saw
+            # generations that had already parsed, which made this metric 1.0 by
+            # construction and the gate criterion incapable of failing.
+            schema_valid.extend(bool(g.get("parsed", True)) for g in r.generations)
         per_patient_best.append(max(rewards))
         first_sample.append(rewards[0])
         all_rewards.extend(rewards)
