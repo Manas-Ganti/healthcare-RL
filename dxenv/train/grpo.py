@@ -743,7 +743,7 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
 
         self._opt.zero_grad(set_to_none=True)
         loss_sum = kl_sum = 0.0
-        counted = 0
+        counted = n_done = 0
         for seq, n_tokens in zip(batch, lengths, strict=True):
             if n_tokens == 0:
                 continue
@@ -774,6 +774,14 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
             kl_sum += float(kl.sum().item())
             counted += n_tokens
             del logp, ref_logp, kl, surrogate, ratio, loss, old_logp
+            # The 5-step run logged "expandable_segments: memory mapping failed ... free:
+            # 20840448" on the trainer card -- 20MiB clear, recovered, but that close.
+            # Releasing periodically rather than only at the end of the step keeps a
+            # 100-step run from finding the edge. Every 16 sequences, because
+            # empty_cache() synchronises and doing it per sequence is a measurable tax.
+            n_done += 1
+            if n_done % 16 == 0:
+                torch.cuda.empty_cache()
 
         torch.nn.utils.clip_grad_norm_(
             [p for p in self._model.parameters() if p.requires_grad], 1.0
