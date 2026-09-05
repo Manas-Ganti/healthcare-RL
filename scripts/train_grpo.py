@@ -45,6 +45,12 @@ def main() -> None:
                          "scheduler a long run is a chain of jobs; without this each job "
                          "restarts the curriculum and refills the monitor windows from "
                          "empty, leaving the detectors off for its first stretch.")
+    ap.add_argument("--gpu-memory-utilization", type=float, default=0.40,
+                    help="vLLM's share. The trainer needs the rest, and unlike the "
+                         "engine it cannot be shrunk by configuration.")
+    ap.add_argument("--micro-batch-size", type=int, default=2,
+                    help="sequences per forward/backward; the gradient still covers the "
+                         "whole step")
     ap.add_argument("--dry-run", action="store_true",
                     help="full loop, real rewards and monitors, no gradient step")
     args = ap.parse_args()
@@ -60,6 +66,7 @@ def main() -> None:
         k=args.k, patients_per_step=args.patients_per_step, max_steps=args.steps,
         temperature=args.temperature, learning_rate=args.lr, kl_coef=args.kl_coef,
         seed=args.seed, root=args.root,
+        micro_batch_size=args.micro_batch_size,
     )
 
     if args.dry_run:
@@ -70,6 +77,12 @@ def main() -> None:
         backend = VLLMBackend(
             model=args.model,
             lora_path=str(args.reference_adapter) if args.reference_adapter else None,
+            # Measured, not guessed: at 0.55 the engine held 45.6GiB and the trainer OOMed
+            # with 6.3GiB free needing 6.9. The trainer carries the 7B in bf16 plus LoRA
+            # optimiser state plus activations, and it is the side that cannot be made
+            # smaller by configuration. Fewer KV blocks costs rollout throughput; running
+            # out of memory costs the run.
+            gpu_memory_utilization=args.gpu_memory_utilization,
         )
         # The updater needs the backend, not just the other way round: every sync pushes
         # the trained adapter back to the sampler, and without that the rollouts keep

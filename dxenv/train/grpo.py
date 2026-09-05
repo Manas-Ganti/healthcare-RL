@@ -90,6 +90,20 @@ class GRPOConfig:
     lora_rank: int = 32
     lora_alpha: int = 64
 
+    micro_batch_size: int = 2
+    """Sequences per forward/backward. The gradient still covers the whole step.
+
+    Not a tuning knob -- the first GPU run OOMed without it. `update` used to run every
+    sequence in one forward pass: ~115 turns per step, each carrying a ~4,000-token prompt,
+    is ~460k tokens of activations at once. With vLLM already holding 45GiB of KV cache on
+    the same card there is nowhere near room for that, and the failure is at the first
+    backward pass rather than anywhere informative.
+    """
+
+    gradient_checkpointing: bool = True
+    """Recompute activations instead of storing them. Roughly 30% slower per step and it
+    is what makes a 4,000-token prompt affordable at all next to a co-located engine."""
+
     monitor_every: int = 10
     save_every: int = 100
     sync_every: int = 1
@@ -609,6 +623,9 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
                                 "gate_proj", "up_proj", "down_proj"],
             ),
         )
+        if self.config.gradient_checkpointing:
+            self._model.gradient_checkpointing_enable()
+            self._model.enable_input_require_grads()
         self._opt = torch.optim.AdamW(
             [p for p in self._model.parameters() if p.requires_grad],
             lr=self.config.learning_rate,
@@ -638,42 +655,74 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         return logp, mask
 
     def update(self, batch: Sequence[TrainingSequence]) -> dict[str, float]:
+        """One optimiser step over the whole batch, accumulated in micro-batches.
+
+        The gradient is identical to processing the batch at once -- each micro-batch's
+        loss is scaled by its share of the step's tokens before backward, so the sum is
+        the same weighted mean. What changes is peak memory, which is the only reason a
+        7B trainer fits beside a vLLM engine holding 45GiB of KV cache.
+        """
         import torch
 
         self._lazy()
-        adv = torch.tensor([b.advantage for b in batch], device="cuda").unsqueeze(-1)
-        logp, mask = self._completion_logprobs(self._model, batch)
-        with torch.no_grad(), self._model.disable_adapter():
-            ref_logp, _ = self._completion_logprobs(self._model, batch)
-        old_logp = logp.detach()
+        micro = max(1, self.config.micro_batch_size)
+        chunks = [batch[i : i + micro] for i in range(0, len(batch), micro)]
 
-        # One inner epoch, so `old_logp` is this batch's own detached logprobs and the
-        # ratio is identically 1 -- the clipping is INERT and this reduces to a plain
-        # policy gradient. That is correct single-epoch GRPO, and it is written out
-        # because the clip_eps knob otherwise looks like it is doing something. It starts
-        # doing something the moment a second inner epoch is added.
-        ratio = torch.exp(logp - old_logp)
-        surrogate = torch.min(
-            ratio * adv,
-            torch.clamp(ratio, 1 - self.config.clip_eps, 1 + self.config.clip_eps) * adv,
-        )
-        # k3: exp(r) - r - 1, r = ref - policy. Non-negative per token, unlike the naive
-        # difference, which occasionally pays the policy for leaving the reference.
-        r = ref_logp - logp
-        kl = torch.exp(r) - r - 1.0
-        denom = mask.sum().clamp(min=1.0)
-        loss = -((surrogate - self.config.kl_coef * kl) * mask).sum() / denom
-
+        # Token counts first, so each chunk can be weighted by its true share. Scaling by
+        # 1/len(chunks) instead would silently reweight the step toward short sequences.
         self._opt.zero_grad(set_to_none=True)
-        loss.backward()
+        total_tokens = 0.0
+        masks = []
+        for chunk in chunks:
+            with torch.no_grad():
+                _, mask = self._completion_logprobs(self._model, chunk)
+            masks.append(float(mask.sum().item()))
+            total_tokens += masks[-1]
+        denom = max(total_tokens, 1.0)
+
+        loss_sum = kl_sum = 0.0
+        for chunk, chunk_tokens in zip(chunks, masks, strict=True):
+            if chunk_tokens == 0:
+                continue
+            adv = torch.tensor(
+                [b.advantage for b in chunk], device="cuda"
+            ).unsqueeze(-1)
+            logp, mask = self._completion_logprobs(self._model, chunk)
+            with torch.no_grad(), self._model.disable_adapter():
+                ref_logp, _ = self._completion_logprobs(self._model, chunk)
+            old_logp = logp.detach()
+
+            # One inner epoch, so `old_logp` is this batch's own detached logprobs and the
+            # ratio is identically 1 -- the clipping is INERT and this reduces to a plain
+            # policy gradient. Correct for single-epoch GRPO, and written out because
+            # clip_eps otherwise looks like it is doing something.
+            ratio = torch.exp(logp - old_logp)
+            surrogate = torch.min(
+                ratio * adv,
+                torch.clamp(ratio, 1 - self.config.clip_eps, 1 + self.config.clip_eps) * adv,
+            )
+            # k3: exp(r) - r - 1, r = ref - policy. Non-negative per token, unlike the
+            # naive difference, which occasionally pays the policy for leaving the
+            # reference.
+            r = ref_logp - logp
+            kl = torch.exp(r) - r - 1.0
+            loss = -((surrogate - self.config.kl_coef * kl) * mask).sum() / denom
+            loss.backward()
+
+            loss_sum += float(loss.item())
+            kl_sum += float((kl * mask).sum().item())
+            del logp, ref_logp, kl, surrogate, ratio, loss
+            torch.cuda.empty_cache()
+
         torch.nn.utils.clip_grad_norm_(
             [p for p in self._model.parameters() if p.requires_grad], 1.0
         )
         self._opt.step()
         return {
-            "loss": float(loss.item()),
-            "kl": float(((kl * mask).sum() / denom).item()),
+            "loss": loss_sum,
+            "kl": kl_sum / denom,
             "n_sequences": float(len(batch)),
+            "n_micro_batches": float(len(chunks)),
         }
 
     def sync_rollout_weights(self) -> None:
