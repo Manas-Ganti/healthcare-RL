@@ -3,7 +3,7 @@
 #SBATCH --account=ece-6524-spring2026
 #SBATCH --partition=a100_normal_q
 #SBATCH --qos=tc_a100_normal_short
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:a100:2
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
 #SBATCH --time=12:00:00
@@ -20,8 +20,8 @@
 #                   sacctmgr show qos format=name%28,priority,maxwall
 #   --mem       explicit, NEVER 0. --mem=0 means all memory on the node, which can only be
 #               satisfied where nobody holds a byte, so a small job can never backfill.
-#   --gres      typed (gpu:a100:1). A100 is 80GB, H200 is 141GB; for H200 use
-#               --partition=h200_normal_q --qos=tc_h200_normal_short --gres=gpu:h200:1.
+#   --gres      TWO a100s: vLLM on cuda:0, the trainer on cuda:1. Sharing one card cost
+#               three OOMs. A node has gpu:a100:8, so the second card is nearly free.
 #   --account   from `quota`. Do NOT use *_preemptable_q: normal preempts preemptable,
 #               so moving there makes you the preemptee.
 #   --time      12h, deliberately, not the 24h that tc_a100_normal_short allows. This job
@@ -63,8 +63,14 @@ REF_ADAPTER="${1:-}"
 REF_ARG=""
 [[ -n "$REF_ADAPTER" ]] && REF_ARG="--reference-adapter $REF_ADAPTER"
 
+# Two GPUs: vLLM on cuda:0, the trainer on cuda:1. Sharing one card caused three OOMs --
+# the engine reserves its share up front and the trainer takes what is left, so every fix
+# on one side just moved the pressure to the other. A node here has gpu:a100:8, so the
+# second card costs nothing in queue terms and removes the interaction entirely.
 python scripts/train_grpo.py \
     --run-id grpo \
+    --trainer-device "${DXENV_TRAINER_DEVICE:-cuda:1}" \
+    --gpu-memory-utilization "${DXENV_VLLM_UTIL:-0.85}" \
     --model "$DXENV_MODEL" \
     $REF_ARG \
     --steps "${DXENV_GRPO_STEPS:-400}" \

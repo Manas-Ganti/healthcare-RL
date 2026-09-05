@@ -45,6 +45,9 @@ def main() -> None:
                          "scheduler a long run is a chain of jobs; without this each job "
                          "restarts the curriculum and refills the monitor windows from "
                          "empty, leaving the detectors off for its first stretch.")
+    ap.add_argument("--trainer-device", default="cuda:0",
+                    help="where the trainer loads. With --gres=gpu:a100:2 use cuda:1 so "
+                         "vLLM keeps cuda:0 to itself and the two stop competing.")
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.40,
                     help="vLLM's share. The trainer needs the rest, and unlike the "
                          "engine it cannot be shrunk by configuration.")
@@ -63,6 +66,7 @@ def main() -> None:
         k=args.k, patients_per_step=args.patients_per_step, max_steps=args.steps,
         temperature=args.temperature, learning_rate=args.lr, kl_coef=args.kl_coef,
         seed=args.seed, root=args.root,
+        trainer_device=args.trainer_device,
     )
 
     if args.dry_run:
