@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=dxenv-grpo
 #SBATCH --account=ece-6524-spring2026
-#SBATCH --partition=a100_normal_q
-#SBATCH --qos=tc_a100_normal_short
-#SBATCH --gres=gpu:a100:2
+#SBATCH --partition=h200_normal_q
+#SBATCH --qos=tc_h200_normal_short
+#SBATCH --gres=gpu:h200:2
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
 #SBATCH --time=12:00:00
@@ -20,8 +20,11 @@
 #                   sacctmgr show qos format=name%28,priority,maxwall
 #   --mem       explicit, NEVER 0. --mem=0 means all memory on the node, which can only be
 #               satisfied where nobody holds a byte, so a small job can never backfill.
-#   --gres      TWO a100s: vLLM on cuda:0, the trainer on cuda:1. Sharing one card cost
-#               three OOMs. A node has gpu:a100:8, so the second card is nearly free.
+#   --gres      TWO h200s: vLLM on cuda:0, the trainer on cuda:1. H200 is 141GB against
+#               the A100's 80GB, and the trainer OOMed at 77.7GB on a card it had to
+#               itself -- the logits tensor is [T, 152064] and episodes get longer as the
+#               policy learns to test, so the requirement grows over a run. 76% more
+#               headroom for the same queue priority.
 #   --account   from `quota`. Do NOT use *_preemptable_q: normal preempts preemptable,
 #               so moving there makes you the preemptee.
 #   --time      12h, deliberately, not the 24h that tc_a100_normal_short allows. This job

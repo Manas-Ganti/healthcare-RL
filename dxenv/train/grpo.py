@@ -99,6 +99,16 @@ class GRPOConfig:
     interaction. `--gres=gpu:a100:2` with `--trainer-device cuda:1`.
     """
 
+    max_grad_tokens: int = 6144
+    """Longest prompt+completion the gradient step will process.
+
+    The logits tensor is [T, vocab] and vocab is 152,064, so length is the single biggest
+    term in trainer memory: 4k tokens is 1.1GiB in bf16, 16k is 4.6GiB, and the float
+    conversion inside cross_entropy doubles it again. max_model_len allows 16k, and
+    episodes get LONGER as the policy learns to order tests -- so the worst case arrives
+    late in a run, when a job is most expensive to lose.
+    """
+
     gradient_checkpointing: bool = True
     """Recompute activations instead of storing them. Roughly 30% slower per step, and
     what makes a 4,000-token prompt affordable next to a co-located engine.
@@ -744,12 +754,28 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         self._opt.zero_grad(set_to_none=True)
         loss_sum = kl_sum = 0.0
         counted = n_done = 0
+        longest = max([*lengths, 0])
+        skipped = 0
         for seq, n_tokens in zip(batch, lengths, strict=True):
             if n_tokens == 0:
                 continue
-            logp = self._completion_logprobs(self._model, seq)
+            total_len = n_tokens + (self._encode(seq)[1])
+            if total_len > self.config.max_grad_tokens:
+                # Bounded rather than fatal. Logits are [T, 152064]; at 16k tokens that is
+                # 4.6GiB in bf16 before anything else, and one such sequence can take the
+                # card down. Episodes get longer as the policy learns to order tests, so
+                # this grows over a run -- exactly when a job is most expensive to lose.
+                # Skipped sequences are counted and reported, not silently dropped.
+                skipped += 1
+                continue
+            # REFERENCE FIRST, policy second. The reference pass runs under no_grad and
+            # frees immediately; the policy pass holds its graph until backward. Doing
+            # policy-then-reference means the peak is (policy graph + reference forward)
+            # rather than max of the two, and on a 5,000-token sequence the reference
+            # forward alone is several GiB of logits.
             with torch.no_grad(), self._model.disable_adapter():
-                ref_logp = self._completion_logprobs(self._model, seq)
+                ref_logp = self._completion_logprobs(self._model, seq).detach()
+            logp = self._completion_logprobs(self._model, seq)
             old_logp = logp.detach()
 
             # One inner epoch, so `old_logp` is this sequence's own detached logprobs and
@@ -788,11 +814,16 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         )
         self._opt.step()
         torch.cuda.empty_cache()
+        if skipped:
+            print(f"[dxenv] skipped {skipped}/{len(batch)} sequences over "
+                  f"{self.config.max_grad_tokens} tokens (longest {longest})", flush=True)
         return {
             "loss": loss_sum,
             "kl": kl_sum / denom,
             "n_sequences": float(len(batch)),
             "n_tokens": float(counted),
+            "n_skipped": float(skipped),
+            "longest_completion": float(longest),
         }
 
     def sync_rollout_weights(self) -> None:
