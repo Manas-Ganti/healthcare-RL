@@ -178,6 +178,21 @@ def main() -> None:
     run_tag = os.environ.get("SLURM_JOB_ID") or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     out = args.out or Path(f"runs/phase3/{subject_name}_baseline.json")
 
+    if args.lora:
+        # Checked BEFORE the engine loads. vLLM discovers a missing adapter only when the
+        # first request is scheduled -- two minutes of weight loading and CUDA graph
+        # capture later -- and reports it as a fatal EngineCoreError under several hundred
+        # lines of scheduler dump. The actual cause is one missing file.
+        cfg_file = Path(args.lora) / "adapter_config.json"
+        if not cfg_file.exists():
+            nested = sorted(Path(args.lora).glob("*/adapter_config.json"))
+            hint = (
+                f" Found one at {nested[0].parent} -- `cp -r src dst` nests when dst "
+                f"already exists, so pass that path instead."
+                if nested else " Check the path holds a PEFT adapter, not a directory of them."
+            )
+            raise SystemExit(f"no adapter_config.json under {args.lora}.{hint}")
+
     records = generate_corpus(args.n, seed=args.seed)
     ctx = RolloutContext()
     assert ctx.reward_config is not None
