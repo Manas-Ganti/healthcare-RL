@@ -151,6 +151,10 @@ def main() -> None:
     ap.add_argument("--lora", type=Path, default=None,
                     help="SFT adapter. With it the model row is named `sft` rather than "
                          "`prompted`, because the two runs answer different questions.")
+    ap.add_argument("--label", default=None,
+                    help="names the measured row and the results file. The same sweep "
+                         "measures the SFT adapter and the GRPO adapter; calling both "
+                         "'sft' makes the results file lie about which policy it holds.")
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.85,
                     help="0.85 suits this standalone sweep, where nothing shares the "
                          "card. VLLMBackend defaults lower for the co-located GRPO run.")
@@ -164,7 +168,7 @@ def main() -> None:
     # help without destroying the calibration and the diversity GRPO needs" -- which is
     # Gate B proper, the go/no-go into Phase 4. Same script, same thresholds, two
     # different decisions, and the results must not overwrite each other.
-    subject_name = "sft" if args.lora else "prompted"
+    subject_name = args.label or ("sft" if args.lora else "prompted")
     # A UNIQUE run id per invocation. The store is append-only, so a fixed id makes every
     # attempt -- including the five that crashed while the vLLM path was being fixed --
     # accumulate into one file: 13,536 lines where this run contributes 3,800. That breaks
@@ -172,7 +176,7 @@ def main() -> None:
     # GRAMMARS, since the schema changed between those attempts. Offline rescoring would
     # then average across incompatible decoders without saying so.
     run_tag = os.environ.get("SLURM_JOB_ID") or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    out = args.out or Path(f"runs/phase3/{'sft' if args.lora else 'prompted'}_baseline.json")
+    out = args.out or Path(f"runs/phase3/{subject_name}_baseline.json")
 
     records = generate_corpus(args.n, seed=args.seed)
     ctx = RolloutContext()
@@ -232,6 +236,7 @@ def main() -> None:
         "n": args.n, "k": args.k, "seed": args.seed, "temperature": args.temperature,
         "model": args.model,
         "lora": str(args.lora) if args.lora else None,
+        "label": subject_name,
         "blank_record_floor": floor,
         "gate_b_pass_bar": bar,
         # Hoisted from the subject row so the gate checker reads one place. The subject is

@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=96G
-#SBATCH --time=06:00:00
+#SBATCH --time=24:00:00
 #SBATCH --mail-user=manasganti@vt.edu
 #SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm/logs/gateb-%j.out
@@ -53,11 +53,15 @@ source slurm/env.sh
 # ---------------------------------------------------------------------------------
 dxenv_notify_on_exit "Gate B"
 
+# $1 = adapter path, $2 = label for the row and the results file (default "sft").
+# The label matters: the same script measures the SFT adapter and the GRPO adapter, and a
+# results file that calls the GRPO policy "sft" is worse than no label at all.
 LORA_ARG=""
+LABEL="${2:-sft}"
 RESULTS="runs/phase3/prompted_baseline.json"
 if [[ -n "${1:-}" ]]; then
-  LORA_ARG="--lora $1"
-  RESULTS="runs/phase3/sft_baseline.json"
+  LORA_ARG="--lora $1 --label $LABEL"
+  RESULTS="runs/phase3/${LABEL}_baseline.json"
 fi
 
 python scripts/phase3_prompted_baseline.py \
