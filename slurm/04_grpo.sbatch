@@ -6,10 +6,11 @@
 #SBATCH --gres=gpu:h200:2
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 #SBATCH --mail-user=manasganti@vt.edu
 #SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm/logs/grpo-%j.out
+#SBATCH --signal=B:TERM@300
 #
 # FLAGS THAT ARE LOAD-BEARING, not boilerplate (docs/arc/runbook.md 5):
 #
@@ -27,12 +28,11 @@
 #               headroom for the same queue priority.
 #   --account   from `quota`. Do NOT use *_preemptable_q: normal preempts preemptable,
 #               so moving there makes you the preemptee.
-#   --time      12h, deliberately, not the 24h that tc_a100_normal_short allows. This job
-#               RESUMES and requeues itself, so wall time costs only a vLLM restart per
-#               link, while a shorter request backfills far more easily -- partitions here
-#               have MaxTime=UNLIMITED, so the scheduler cannot plan around the jobs ahead
-#               of you and being small and short is the only reliable way through. Raising
-#               it to 24h would also sit exactly ON the QOS cap, with no margin.
+#   --time      24h, the tc_h200_normal_short cap. 12h was chosen for backfill and cost a
+#               full allocation: the job was killed mid-run and did NOT requeue, because
+#               the self-requeue only ran on clean completion. Both are fixed -- the wall
+#               is longer AND --signal=B:TERM@300 gives the trap five minutes to
+#               checkpoint and resubmit before SLURM kills the job.
 #
 # #SBATCH directives cannot read environment variables, and sbatch copies this file at
 # SUBMIT time -- a pending job will not pick up edits made after it was queued.
@@ -80,6 +80,23 @@ python scripts/train_grpo.py \
     --k 8 --patients-per-step 8 \
     --root "$DXENV_RUNS" \
     --resume
+
+# Requeue on the WALL CLOCK too, not only on clean completion. The first 24h attempt was
+# cancelled at the limit and simply stopped: the requeue below never ran, because the job
+# never reached it. --signal=B:TERM@300 delivers SIGTERM five minutes early, so this trap
+# has time to let the loop checkpoint and to resubmit.
+_requeue_if_unfinished() {
+    local state="$DXENV_RUNS/grpo/trainer_state.json"
+    local target="${DXENV_GRPO_STEPS:-400}"
+    [[ -f "$state" ]] || return 0
+    local done_steps
+    done_steps=$(python -c "import json;print(json.load(open('$state'))['step_index'])" 2>/dev/null) || return 0
+    if (( done_steps < target )); then
+        echo "wall clock reached at step $done_steps/$target; resubmitting"
+        sbatch "$0" "$REF_ADAPTER" || true
+    fi
+}
+trap '_requeue_if_unfinished' TERM
 
 # Requeue automatically while there are steps left. Comment out to drive it by hand.
 STATE="$DXENV_RUNS/grpo/trainer_state.json"

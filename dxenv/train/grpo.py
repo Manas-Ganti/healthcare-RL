@@ -755,11 +755,13 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         loss_sum = kl_sum = 0.0
         counted = n_done = 0
         longest = max([*lengths, 0])
+        longest_total = 0
         skipped = 0
         for seq, n_tokens in zip(batch, lengths, strict=True):
             if n_tokens == 0:
                 continue
             total_len = n_tokens + (self._encode(seq)[1])
+            longest_total = max(longest_total, total_len)
             if total_len > self.config.max_grad_tokens:
                 # Bounded rather than fatal. Logits are [T, 152064]; at 16k tokens that is
                 # 4.6GiB in bf16 before anything else, and one such sequence can take the
@@ -815,8 +817,14 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
         self._opt.step()
         torch.cuda.empty_cache()
         if skipped:
+            # Report prompt+completion, which is what the cap tests. The first version
+            # printed the completion length beside a prompt+completion threshold, which
+            # read as "skipped 2 sequences over 6144 tokens (longest 2877)" -- two numbers
+            # that cannot both be true of the same quantity.
             print(f"[dxenv] skipped {skipped}/{len(batch)} sequences over "
-                  f"{self.config.max_grad_tokens} tokens (longest {longest})", flush=True)
+                  f"{self.config.max_grad_tokens} prompt+completion tokens "
+                  f"(longest total {longest_total}, longest completion {longest})",
+                  flush=True)
         return {
             "loss": loss_sum,
             "kl": kl_sum / denom,
@@ -824,6 +832,7 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
             "n_tokens": float(counted),
             "n_skipped": float(skipped),
             "longest_completion": float(longest),
+            "longest_total": float(longest_total),
         }
 
     def sync_rollout_weights(self) -> None:
