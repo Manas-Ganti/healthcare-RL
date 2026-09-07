@@ -348,6 +348,61 @@ cache at startup. Raise it for a standalone eval sweep.
 
 ---
 
+## Phase 4 result — a fast correction, then a plateau
+
+99 GRPO steps on Qwen2.5-7B + LoRA, starting from the SFT checkpoint. 8 patients x 8
+samples per step, ~8 min/step, one 12-hour job. Curve: `runs/grpo/curve.png`, regenerated
+from committed data by `scripts/plot_grpo.py`.
+
+|  | steps 0-19 | steps 20-98 | slope after step 20 |
+|---|---|---|---|
+| episode reward | −0.437 | −0.360 | **−0.00035 / step** |
+| diagnosis score | −0.191 | −0.053 | −0.00019 / step |
+| tests per episode | 2.96 | 3.57 | +0.00077 / step |
+| within-group std | 0.300 | 0.145 | +0.00100 / step |
+| KL from SFT reference | 0.001 | 0.044 | +0.00111 / step |
+
+**The shape is a step change, not a trend.** Reward moves −1.1 → −0.35 and diagnosis
+−1.0 → −0.05 inside the first ~20 steps, then both flatten for the remaining 78. Fitting a
+line to the whole run gives +0.0007/step and reads as steady learning; that is an artefact
+of the transient. After step 20 the reward slope is NEGATIVE.
+
+Meanwhile KL sits at zero until step 40 and then climbs to 0.08 by step 70. So the policy
+is demonstrably moving in the back half of the run and not improving while it does. The
+early gain is most plausibly GRPO correcting the SFT policy's degenerate habits -- chiefly
+that it had stopped ordering tests -- rather than learning to diagnose.
+
+### What did move: test-ordering
+
+The clearest signal, and the one this environment was built to show. SFT left the policy at
+**0.79 tests per episode**, faithfully imitating a teacher that stops early (`min_gain=0.15`
+in `PrivilegedTeacher`). GRPO took it to **3.5** within twenty steps and held it there. No
+term rewards testing -- I5 forbids that -- so the only route is that tests improved the
+terminal score by more than they cost. That is the cost-accuracy mechanism working, and it
+is a result about the ENVIRONMENT rather than about the policy.
+
+### What this does not show
+
+- **The policy is still poor.** −0.36 sits below the blank-record floor (−0.018), far below
+  the vitals-only Bayes bar (+0.675), and 2.4 below the Bayes ceiling.
+- **The curriculum never advanced.** All 99 steps in `single_condition_short`; the criterion
+  is +0.70.
+- **Within-group std settled at ~0.15**, above the 0.05 floor and with `degenerate_fraction`
+  at 0.0% throughout, so there was always gradient available -- the plateau is not entropy
+  collapse.
+
+### The open question
+
+Movement without improvement, from a policy with spread to learn from and headroom to
+climb into, points at the reward signal rather than at the optimiser. The likeliest
+candidate is the one Gate B already identified: the environment's likelihood parameters are
+invented, so the terminal score rewards learning a synthetic mapping that 99 steps over
+~6,300 episodes is simply too small a sample to fit across 149 conditions. Distinguishing
+that from a reward-shape problem is the next experiment, not a conclusion this run
+supports.
+
+---
+
 ## Persistence, and why it came first
 
 `runs/{run_id}/episodes.jsonl`, one JSON line per episode, under pinned config hashes.

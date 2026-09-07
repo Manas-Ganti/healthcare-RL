@@ -21,6 +21,9 @@ dev = [
     # enforced in production by vLLM's own engine; this is how the fast suite checks that
     # the schema we hand it actually rejects an off-menu action.
     "jsonschema>=4.21",
+    # Only for scripts/plot_grpo.py, which regenerates the Phase 4 figure from
+    # runs/grpo/steps.jsonl. Nothing in dxenv/ imports it.
+    "matplotlib>=3.8",
 ]
 
 # GPU extras, deliberately SPLIT IN TWO. They cannot be installed together.

@@ -28,6 +28,7 @@ runs/phase3/*
 !runs/grpo/
 runs/grpo/*
 !runs/grpo/steps.jsonl
+!runs/grpo/curve.png
 data/synthea_output/
 *.jsonl.gz
 .DS_Store
