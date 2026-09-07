@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import signal
 from pathlib import Path
 
 from dxenv.data.corpus import generate_corpus
@@ -92,6 +93,21 @@ def main() -> None:
             return LLMPolicy(backend=backend, temperature=args.temperature, seed=seed)
 
     trainer = GRPOTrainer(cfg, records, splits, factory, updater)  # (3)
+
+    # Checkpoint on SIGTERM, which is how a scheduler ends a job at its wall clock.
+    #
+    # The loop already saves in a `finally`, and that is NOT enough: Python's default
+    # SIGTERM action terminates the process immediately without unwinding, so `finally`
+    # never runs. A 12-hour job completed 89 steps and left trainer_state.json reading
+    # step 9 -- the metrics survived only because steps.jsonl is flushed per step, and
+    # resuming would have silently redone 89 steps of work.
+    def _checkpoint_and_exit(_signum: int, _frame: object) -> None:
+        path = trainer.save_state()
+        print(f"[dxenv] SIGTERM at step {trainer.step_index}; checkpointed to {path}",
+              flush=True)
+        raise SystemExit(143)
+
+    signal.signal(signal.SIGTERM, _checkpoint_and_exit)
     if args.resume:
         if trainer.load_state():
             print(f"resumed {args.run_id} at step {trainer.step_index}, "

@@ -567,11 +567,15 @@ class GRPOTrainer:
                     report = self.run_step()
                     log.write(json.dumps(report.as_dict(), sort_keys=True) + "\n")
                     log.flush()
+                    # Every step, not every save_every. The state file is a few KB
+                    # written via a temp file and renamed; the adapter snapshot is the
+                    # expensive part and stays on save_every. Losing 89 steps because a
+                    # checkpoint was 91 steps away is not a trade worth making.
+                    self.save_state()
                     if self.step_index % self.config.save_every == 0:
                         self.updater.save(
                             self.config.root / self.config.run_id / f"step-{self.step_index}"
                         )
-                        self.save_state()
             finally:
                 # In `finally`, so a wall-clock kill, an OOM or a halted monitor still
                 # leaves a resumable checkpoint. Losing the last few steps is cheap;
