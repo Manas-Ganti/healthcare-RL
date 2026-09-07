@@ -36,6 +36,7 @@ the run metadata rather than a number edited in place.
 from __future__ import annotations
 
 import json
+import time
 from collections import deque
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
@@ -206,6 +207,9 @@ class StepReport:
     degenerate_fraction: float
     ceiling_gap: float
     n_sequences: int
+    rollout_s: float = 0.0
+    grad_s: float = 0.0
+    sync_s: float = 0.0
     metrics: dict[str, float] = field(default_factory=dict)
 
     def line(self) -> str:
@@ -214,7 +218,9 @@ class StepReport:
             f"dx={self.mean_diagnosis:+.3f} tests={self.mean_tests:.2f} "
             f"group_std={self.mean_group_std:.3f} "
             f"degen={self.degenerate_fraction:.1%} gap={self.ceiling_gap:+.3f} "
-            f"seqs={self.n_sequences}"
+            f"seqs={self.n_sequences} "
+            f"[rollout {self.rollout_s / 60:.1f}m grad {self.grad_s / 60:.1f}m "
+            f"sync {self.sync_s / 60:.1f}m]"
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -224,6 +230,7 @@ class StepReport:
             "mean_group_std": self.mean_group_std,
             "degenerate_fraction": self.degenerate_fraction,
             "ceiling_gap": self.ceiling_gap, "n_sequences": self.n_sequences,
+            "rollout_s": self.rollout_s, "grad_s": self.grad_s, "sync_s": self.sync_s,
             **self.metrics,
         }
 
@@ -373,7 +380,12 @@ class GRPOTrainer:
             )
             bounds.append((start, len(specs)))
 
+        # Phase timings. A step was estimated at 6 minutes and measured at ~180, and the
+        # gradient arithmetic accounts for only ~10 of those -- so the cost is in rollouts
+        # or in the adapter sync, and guessing which has already cost two allocations.
+        t0 = time.monotonic()
         flat = rollout_lockstep(specs, self.policy_factory, ctx)
+        rollout_s = time.monotonic() - t0
 
         for start, end in bounds:
             rollouts = flat[start:end]
@@ -401,7 +413,9 @@ class GRPOTrainer:
             all_sequences.extend(sequences_from_rollouts(rollouts, group_advantages(rewards)))
             all_rollouts.extend(rollouts)
 
+        t0 = time.monotonic()
         metrics = self.updater.update(all_sequences) if all_sequences else {}
+        grad_s = time.monotonic() - t0
         rewards_all = np.array([r.reward for r in all_rollouts], dtype=np.float64)
         report = StepReport(
             step=self.step_index,
@@ -414,6 +428,9 @@ class GRPOTrainer:
             ceiling_gap=float(np.mean([r.expected_ceiling for r in all_rollouts]) -
                               float(rewards_all.mean())),
             n_sequences=len(all_sequences),
+            rollout_s=rollout_s,
+            grad_s=grad_s,
+            sync_s=0.0,
             metrics={k: float(v) for k, v in metrics.items()},
         )
         self.stage_rewards.append(report.mean_reward)
@@ -422,6 +439,7 @@ class GRPOTrainer:
 
         if self.step_index % cfg.monitor_every == 0:
             self.assert_monitors()
+        t0 = time.monotonic()
         if self.step_index % cfg.sync_every == 0:
             # Push the updated adapter to the sampler. Without this the rollouts keep
             # coming from the reference policy while the trained weights drift away from
@@ -429,6 +447,7 @@ class GRPOTrainer:
             # that grows for a reason nobody can find.
             self.updater.sync_rollout_weights()
             self.n_syncs += 1
+        report.sync_s = time.monotonic() - t0
         self.maybe_advance_stage()
         return report
 

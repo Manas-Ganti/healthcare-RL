@@ -77,7 +77,7 @@ python scripts/train_grpo.py \
     --model "$DXENV_MODEL" \
     $REF_ARG \
     --steps "${DXENV_GRPO_STEPS:-400}" \
-    --k 8 --patients-per-step 8 \
+    --k "${DXENV_K:-8}" --patients-per-step "${DXENV_PATIENTS:-8}" \
     --root "$DXENV_RUNS" \
     --resume
 
