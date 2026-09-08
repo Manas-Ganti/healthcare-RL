@@ -30,6 +30,12 @@ superset, organised for recall.
 15. [Numbers worth memorising](#15-numbers-worth-memorising)
 16. [Likely interview questions](#16-likely-interview-questions)
 
+**Appendices** — the full enumerations:
+
+- [A — the 149 condition labels](#appendix-a--the-149-condition-labels)
+- [B — the 73 orderable tests](#appendix-b--the-73-orderable-tests)
+- [C — the 331 tests in the suite](#appendix-c--the-331-tests)
+
 ---
 
 ## 1. The 60-second version
@@ -1190,3 +1196,848 @@ it: the Bayes baselines have oracle access to the generative model, the LLM's re
 knowledge actively misleads rather than merely failing to help, and no zero-shot model was
 ever going to clear a bar set that way. That was knowable in advance and I recorded it as the
 reading of Gate B rather than discovering it twice.
+
+---
+
+## Appendix A — the 149 condition labels
+
+Frozen and hash-verified: `test_label_set_frozen` asserts the taxonomy hash
+(`2f762a7a0f71e5db…`). Changing the set breaks it deliberately, because every stored
+trajectory's diagnosis distribution is indexed against this exact ordering.
+
+**Flat is load-bearing.** No label is an ancestor of another (`test_labels_are_flat`).
+A hierarchy would let an agent hedge upward — "endocrine disorder" — and collect
+partial credit everywhere, which defeats the proper scoring rule.
+
+`urgency` selects the severity weight (tier 1 → 1.0, 2 → 1.8, 3 → 3.2, 4 → 6.0) and
+keys on the **true** condition, so the agent cannot inflate its score by reporting
+high-urgency labels. `prior` is the normalised prevalence weight; the blank-record
+baseline reports exactly this vector.
+
+
+### gastrointestinal — 22
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `gastroesophageal_reflux` | Gastroesophageal reflux disease | 1 | 0.0236 |
+| `viral_gastroenteritis` | Viral gastroenteritis | 1 | 0.0221 |
+| `irritable_bowel_syndrome` | Irritable bowel syndrome | 1 | 0.0133 |
+| `nonalcoholic_fatty_liver` | Non-alcoholic fatty liver disease | 1 | 0.0111 |
+| `peptic_ulcer_disease` | Peptic ulcer disease | 2 | 0.0066 |
+| `acute_appendicitis` | Acute appendicitis | 4 | 0.0052 |
+| `diverticulitis` | Diverticulitis | 3 | 0.0052 |
+| `acute_cholecystitis` | Acute cholecystitis | 3 | 0.0044 |
+| `acute_pancreatitis` | Acute pancreatitis | 4 | 0.0037 |
+| `hepatic_cirrhosis` | Hepatic cirrhosis | 3 | 0.0037 |
+| `upper_gi_bleed` | Upper gastrointestinal bleed | 4 | 0.0030 |
+| `celiac_disease` | Celiac disease | 1 | 0.0026 |
+| `colorectal_cancer` | Colorectal cancer | 4 | 0.0026 |
+| `small_bowel_obstruction` | Small bowel obstruction | 4 | 0.0026 |
+| `chronic_hepatitis_c` | Chronic hepatitis C | 2 | 0.0022 |
+| `clostridioides_difficile_colitis` | Clostridioides difficile colitis | 3 | 0.0022 |
+| `crohn_disease` | Crohn disease | 2 | 0.0022 |
+| `ulcerative_colitis` | Ulcerative colitis | 2 | 0.0022 |
+| `alcoholic_hepatitis` | Alcoholic hepatitis | 3 | 0.0018 |
+| `choledocholithiasis` | Choledocholithiasis | 3 | 0.0018 |
+| `chronic_hepatitis_b` | Chronic hepatitis B | 2 | 0.0015 |
+| `pancreatic_cancer` | Pancreatic cancer | 4 | 0.0009 |
+
+### neurologic — 19
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `tension_headache` | Tension-type headache | 1 | 0.0192 |
+| `migraine` | Migraine | 1 | 0.0177 |
+| `peripheral_neuropathy` | Peripheral neuropathy | 1 | 0.0089 |
+| `alzheimer_dementia` | Alzheimer disease | 2 | 0.0074 |
+| `benign_positional_vertigo` | Benign paroxysmal positional vertigo | 1 | 0.0066 |
+| `ischemic_stroke` | Ischemic stroke | 4 | 0.0059 |
+| `concussion` | Concussion | 3 | 0.0052 |
+| `epilepsy` | Epilepsy | 3 | 0.0044 |
+| `parkinson_disease` | Parkinson disease | 2 | 0.0030 |
+| `transient_ischemic_attack` | Transient ischemic attack | 4 | 0.0030 |
+| `hemorrhagic_stroke` | Hemorrhagic stroke | 4 | 0.0018 |
+| `multiple_sclerosis` | Multiple sclerosis | 2 | 0.0015 |
+| `bell_palsy` | Bell palsy | 2 | 0.0011 |
+| `viral_meningitis` | Viral meningitis | 3 | 0.0011 |
+| `subarachnoid_hemorrhage` | Subarachnoid hemorrhage | 4 | 0.0009 |
+| `bacterial_meningitis` | Bacterial meningitis | 4 | 0.0006 |
+| `encephalitis` | Encephalitis | 4 | 0.0004 |
+| `status_epilepticus` | Status epilepticus | 4 | 0.0004 |
+| `guillain_barre_syndrome` | Guillain-Barre syndrome | 4 | 0.0003 |
+
+### cardiovascular — 18
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `essential_hypertension` | Essential hypertension | 1 | 0.0406 |
+| `atrial_fibrillation` | Atrial fibrillation | 3 | 0.0118 |
+| `heart_failure_reduced_ef` | Heart failure with reduced ejection fraction | 3 | 0.0103 |
+| `stable_angina` | Stable angina pectoris | 2 | 0.0089 |
+| `heart_failure_preserved_ef` | Heart failure with preserved ejection fraction | 3 | 0.0081 |
+| `acute_myocardial_infarction` | Acute myocardial infarction | 4 | 0.0066 |
+| `peripheral_artery_disease` | Peripheral artery disease | 2 | 0.0059 |
+| `deep_vein_thrombosis` | Deep vein thrombosis | 3 | 0.0052 |
+| `unstable_angina` | Unstable angina | 4 | 0.0044 |
+| `aortic_stenosis` | Aortic stenosis | 2 | 0.0037 |
+| `pulmonary_embolism` | Pulmonary embolism | 4 | 0.0037 |
+| `supraventricular_tachycardia` | Supraventricular tachycardia | 3 | 0.0030 |
+| `acute_pericarditis` | Acute pericarditis | 3 | 0.0018 |
+| `hypertensive_emergency` | Hypertensive emergency | 4 | 0.0015 |
+| `myocarditis` | Myocarditis | 4 | 0.0011 |
+| `infective_endocarditis` | Infective endocarditis | 4 | 0.0007 |
+| `aortic_dissection` | Aortic dissection | 4 | 0.0006 |
+| `cardiac_tamponade` | Cardiac tamponade | 4 | 0.0004 |
+
+### respiratory — 17
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `upper_respiratory_infection` | Upper respiratory infection | 1 | 0.0295 |
+| `allergic_rhinitis` | Allergic rhinitis | 1 | 0.0221 |
+| `acute_bronchitis` | Acute bronchitis | 1 | 0.0192 |
+| `influenza` | Influenza | 2 | 0.0177 |
+| `community_acquired_pneumonia` | Community-acquired pneumonia | 3 | 0.0162 |
+| `acute_sinusitis` | Acute sinusitis | 1 | 0.0148 |
+| `covid19` | COVID-19 | 3 | 0.0148 |
+| `asthma_exacerbation` | Asthma exacerbation | 3 | 0.0133 |
+| `obstructive_sleep_apnea` | Obstructive sleep apnea | 1 | 0.0118 |
+| `streptococcal_pharyngitis` | Streptococcal pharyngitis | 2 | 0.0118 |
+| `copd_exacerbation` | COPD exacerbation | 3 | 0.0111 |
+| `pleural_effusion` | Pleural effusion | 3 | 0.0037 |
+| `aspiration_pneumonia` | Aspiration pneumonia | 3 | 0.0030 |
+| `lung_cancer` | Lung cancer | 4 | 0.0026 |
+| `pneumothorax` | Pneumothorax | 4 | 0.0015 |
+| `pulmonary_fibrosis` | Pulmonary fibrosis | 3 | 0.0015 |
+| `tuberculosis` | Pulmonary tuberculosis | 3 | 0.0011 |
+
+### endocrine — 17
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `type_2_diabetes` | Type 2 diabetes mellitus | 2 | 0.0332 |
+| `dyslipidemia` | Dyslipidemia | 1 | 0.0310 |
+| `hypothyroidism` | Hypothyroidism | 1 | 0.0162 |
+| `vitamin_d_deficiency` | Vitamin D deficiency | 1 | 0.0148 |
+| `gout` | Gout | 2 | 0.0081 |
+| `hyponatremia` | Hyponatremia | 3 | 0.0066 |
+| `hyperthyroidism` | Hyperthyroidism | 2 | 0.0052 |
+| `hypoglycemia` | Hypoglycemia | 3 | 0.0044 |
+| `type_1_diabetes` | Type 1 diabetes mellitus | 2 | 0.0044 |
+| `hyperkalemia` | Hyperkalemia | 4 | 0.0037 |
+| `diabetic_ketoacidosis` | Diabetic ketoacidosis | 4 | 0.0022 |
+| `hypercalcemia` | Hypercalcemia | 3 | 0.0022 |
+| `primary_hyperparathyroidism` | Primary hyperparathyroidism | 2 | 0.0018 |
+| `adrenal_insufficiency` | Adrenal insufficiency | 4 | 0.0009 |
+| `hyperosmolar_hyperglycemic_state` | Hyperosmolar hyperglycemic state | 4 | 0.0009 |
+| `cushing_syndrome` | Cushing syndrome | 2 | 0.0006 |
+| `thyroid_storm` | Thyroid storm | 4 | 0.0002 |
+
+### renal — 9
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `urinary_tract_infection` | Urinary tract infection | 2 | 0.0207 |
+| `chronic_kidney_disease` | Chronic kidney disease | 2 | 0.0133 |
+| `benign_prostatic_hyperplasia` | Benign prostatic hyperplasia | 1 | 0.0103 |
+| `nephrolithiasis` | Nephrolithiasis | 3 | 0.0074 |
+| `acute_kidney_injury` | Acute kidney injury | 4 | 0.0066 |
+| `prostate_cancer` | Prostate cancer | 3 | 0.0044 |
+| `pyelonephritis` | Acute pyelonephritis | 3 | 0.0044 |
+| `glomerulonephritis` | Glomerulonephritis | 3 | 0.0011 |
+| `nephrotic_syndrome` | Nephrotic syndrome | 3 | 0.0011 |
+
+### hematologic — 8
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `iron_deficiency_anemia` | Iron deficiency anemia | 2 | 0.0148 |
+| `anemia_of_chronic_disease` | Anemia of chronic disease | 1 | 0.0059 |
+| `b12_deficiency_anemia` | Vitamin B12 deficiency anemia | 2 | 0.0037 |
+| `lymphoma` | Lymphoma | 4 | 0.0015 |
+| `acute_leukemia` | Acute leukemia | 4 | 0.0007 |
+| `multiple_myeloma` | Multiple myeloma | 4 | 0.0007 |
+| `sickle_cell_crisis` | Sickle cell crisis | 4 | 0.0007 |
+| `immune_thrombocytopenia` | Immune thrombocytopenia | 3 | 0.0006 |
+
+### psychiatric — 8
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `major_depressive_disorder` | Major depressive disorder | 2 | 0.0207 |
+| `generalized_anxiety_disorder` | Generalized anxiety disorder | 1 | 0.0177 |
+| `alcohol_use_disorder` | Alcohol use disorder | 2 | 0.0118 |
+| `attention_deficit_disorder` | Attention deficit hyperactivity disorder | 1 | 0.0103 |
+| `opioid_use_disorder` | Opioid use disorder | 3 | 0.0052 |
+| `bipolar_disorder` | Bipolar disorder | 3 | 0.0037 |
+| `schizophrenia` | Schizophrenia | 3 | 0.0018 |
+| `opioid_overdose` | Opioid overdose | 4 | 0.0015 |
+
+### infectious — 8
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `cellulitis` | Cellulitis | 2 | 0.0103 |
+| `sepsis` | Sepsis | 4 | 0.0059 |
+| `infectious_mononucleosis` | Infectious mononucleosis | 1 | 0.0037 |
+| `lyme_disease` | Lyme disease | 2 | 0.0022 |
+| `hiv_infection` | HIV infection | 3 | 0.0018 |
+| `septic_shock` | Septic shock | 4 | 0.0018 |
+| `osteomyelitis` | Osteomyelitis | 3 | 0.0015 |
+| `necrotizing_fasciitis` | Necrotizing fasciitis | 4 | 0.0001 |
+
+### rheumatologic — 8
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `osteoarthritis` | Osteoarthritis | 1 | 0.0295 |
+| `osteoporosis` | Osteoporosis | 1 | 0.0118 |
+| `fibromyalgia` | Fibromyalgia | 1 | 0.0066 |
+| `rheumatoid_arthritis` | Rheumatoid arthritis | 2 | 0.0059 |
+| `polymyalgia_rheumatica` | Polymyalgia rheumatica | 2 | 0.0015 |
+| `systemic_lupus_erythematosus` | Systemic lupus erythematosus | 3 | 0.0015 |
+| `giant_cell_arteritis` | Giant cell arteritis | 4 | 0.0006 |
+| `septic_arthritis` | Septic arthritis | 4 | 0.0006 |
+
+### dermatologic — 5
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `atopic_dermatitis` | Atopic dermatitis | 1 | 0.0118 |
+| `contact_dermatitis` | Contact dermatitis | 1 | 0.0103 |
+| `psoriasis` | Psoriasis | 1 | 0.0074 |
+| `urticaria` | Urticaria | 2 | 0.0059 |
+| `anaphylaxis` | Anaphylaxis | 4 | 0.0011 |
+
+### obstetric — 4
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `normal_pregnancy` | Normal pregnancy | 1 | 0.0089 |
+| `preeclampsia` | Preeclampsia | 4 | 0.0015 |
+| `ectopic_pregnancy` | Ectopic pregnancy | 4 | 0.0007 |
+| `hyperemesis_gravidarum` | Hyperemesis gravidarum | 3 | 0.0007 |
+
+### environmental — 3
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `acetaminophen_toxicity` | Acetaminophen toxicity | 4 | 0.0006 |
+| `heat_stroke` | Heat stroke | 4 | 0.0004 |
+| `carbon_monoxide_poisoning` | Carbon monoxide poisoning | 4 | 0.0003 |
+
+### musculoskeletal — 3
+
+| slug | display | urg | prior |
+|---|---|---|---|
+| `mechanical_low_back_pain` | Mechanical low back pain | 1 | 0.0266 |
+| `hip_fracture` | Hip fracture | 4 | 0.0030 |
+| `rhabdomyolysis` | Rhabdomyolysis | 4 | 0.0009 |
+
+### Distribution
+
+| urgency | weight | labels | share of prior mass |
+|---|---|---|---|
+| 1 | 1.0 | 31 | 0.486 |
+| 2 | 1.8 | 31 | 0.240 |
+| 3 | 3.2 | 39 | 0.183 |
+| 4 | 6.0 | 48 | 0.092 |
+
+The tier-4 tail is where the severity weights earn their keep: it is a small share of
+the prior mass, so a flat-weighted policy would simply eat it.
+
+---
+
+## Appendix B — the 73 orderable tests
+
+The global menu is **147 actions**: 73 tests,
+72 treatments, plus `diagnose` and `abstain`. Identical for every
+patient [I3] — a per-patient menu *is* the diagnosis. Fingerprint `efcefd976248fe60…`,
+carried on every observation so a trajectory can be checked against the menu it ran under.
+
+Action ids are **content-hashed, not positional**, so adding a test does not renumber
+the others and invalidate every stored trajectory (`test_action_ids_stable`).
+
+Costs are abstract units. `costs.yaml` sets `default: null` — a missing entry **raises**,
+because a free test is an infinite-value test and the agent will find it. The relative
+ordering across categories is what shapes which investigations an agent reaches for first.
+
+Every test returns a value for **every** patient [I4]. There is no "unavailable", so the
+sparsity pattern of a record carries no information about the label.
+
+
+### bedside — 7 tests, cost 1–45
+
+| test key | cost | analytes returned |
+|---|---|---|
+| `glucose_fingerstick` | 1 | glucose |
+| `skin_exam` | 2 | skin_exam_finding |
+| `cognitive_screen` | 3 | cognitive_screen |
+| `ecg` | 3 | ecg_finding |
+| `mood_screen` | 3 | depression_screen |
+| `spirometry` | 4 | spirometry |
+| `sleep_study` | 45 | sleep_study |
+
+### lab — 41 tests, cost 2–15
+
+| test key | cost | analytes returned |
+|---|---|---|
+| `hemoglobin_only` | 2 | hemoglobin |
+| `platelet_count` | 2 | platelets |
+| `esr` | 3 | esr |
+| `renal_function` | 3 | creatinine, egfr |
+| `uric_acid` | 3 | uric_acid |
+| `urinalysis` | 3 | urine_protein, urine_wbc, urine_rbc |
+| `creatine_kinase` | 4 | ck |
+| `crp` | 4 | crp |
+| `electrolytes_focused` | 4 | magnesium, phosphate |
+| `ketones` | 4 | beta_hydroxybutyrate |
+| `lipase` | 4 | lipase |
+| `reticulocyte_count` | 4 | reticulocyte_pct |
+| `bmp` | 5 | sodium, potassium, chloride, bicarbonate, bun, creatinine, glucose, calcium, egfr, anion_gap |
+| `cbc` | 5 | hemoglobin, mcv, wbc, neutrophil_pct, lymphocyte_pct, platelets |
+| `coagulation_panel` | 5 | inr, ptt |
+| `lactate` | 5 | lactate |
+| `lipid_panel` | 5 | ldl, hdl, triglycerides |
+| `serum_osmolality` | 5 | osmolality |
+| `acetaminophen_level` | 6 | acetaminophen_level |
+| `hba1c` | 6 | hba1c |
+| `hcg_quant` | 6 | hcg_quant |
+| `liver_panel` | 6 | ast, alt, alk_phos, total_bilirubin, albumin |
+| `b12_folate` | 7 | vitamin_b12 |
+| `carboxyhemoglobin` | 7 | carboxyhemoglobin |
+| `cmp` | 7 | sodium, potassium, chloride, bicarbonate, bun, creatinine, glucose, calcium, egfr, anion_gap, albumin, ast, alt, alk_phos, total_bilirubin |
+| `peripheral_smear` | 7 | peripheral_smear |
+| `ammonia` | 8 | ammonia |
+| `d_dimer` | 8 | d_dimer |
+| `iron_studies` | 8 | ferritin, iron_saturation |
+| `thyroid_panel` | 8 | tsh, free_t4 |
+| `arterial_blood_gas` | 9 | ph_arterial, pco2, po2 |
+| `toxicology_screen` | 9 | toxicology_screen |
+| `troponin` | 9 | troponin |
+| `vitamin_d` | 9 | vitamin_d_25oh |
+| `bnp` | 10 | bnp |
+| `cortisol_am` | 10 | cortisol_am |
+| `ana` | 11 | ana |
+| `procalcitonin` | 12 | procalcitonin |
+| `pth` | 12 | pth |
+| `rf_anti_ccp` | 14 | rf_anti_ccp |
+| `spep` | 15 | spep |
+
+### micro — 10 tests, cost 5–22
+
+| test key | cost | analytes returned |
+|---|---|---|
+| `rapid_strep` | 5 | rapid_strep |
+| `monospot` | 6 | monospot |
+| `urine_culture` | 10 | urine_culture |
+| `hiv_test` | 12 | hiv_ag_ab |
+| `stool_studies` | 14 | stool_studies |
+| `lyme_serology` | 15 | lyme_serology |
+| `hepatitis_serology` | 16 | hepatitis_serology |
+| `blood_culture` | 18 | blood_culture |
+| `respiratory_pcr` | 20 | respiratory_pcr |
+| `tb_igra` | 22 | tb_igra |
+
+### imaging — 11 tests, cost 22–140
+
+| test key | cost | analytes returned |
+|---|---|---|
+| `hip_xray` | 22 | hip_xray_finding |
+| `chest_xray` | 25 | chest_xray_finding |
+| `bone_density` | 35 | bone_density |
+| `abdominal_us` | 40 | abdominal_us_finding |
+| `pelvic_us` | 40 | pelvic_us_finding |
+| `leg_doppler` | 45 | leg_doppler_finding |
+| `echocardiogram` | 60 | echo_finding |
+| `ct_head` | 75 | ct_head_finding |
+| `ct_chest` | 95 | ct_chest_finding |
+| `ct_abdomen` | 100 | ct_abdomen_finding |
+| `mri_brain` | 140 | mri_brain_finding |
+
+### procedure — 4 tests, cost 70–180
+
+| test key | cost | analytes returned |
+|---|---|---|
+| `joint_aspiration` | 70 | joint_aspirate |
+| `lumbar_puncture` | 90 | csf_profile |
+| `upper_endoscopy` | 150 | endoscopy_finding |
+| `colonoscopy` | 180 | colonoscopy_finding |
+
+**Cost range** 1 to 180, median 8. At λ = 0.004 the median test
+costs 0.032 of reward and the priciest 0.720, against a diagnosis term
+spanning roughly ±6. That ratio is what puts the optimum at an interior 3–6 tests rather
+than at zero or at the budget cap.
+
+---
+
+## Appendix C — the 331 tests
+
+326 fast + 5 slow. The fast suite targets under 60s and runs on
+every commit; the slow ones are corpus-wide sweeps and the toy-MDP policy-invariance
+check, which run nightly and **before every gate**. Marked slow, never deleted.
+
+Three principles explain the shape of this list:
+
+- **Invariant tests run over the full corpus, not a sample.** A leak appearing in 2% of
+  patients is still a leak, and sampling will miss it.
+- **Property-based tests (`hypothesis`) for anything with a mathematical guarantee** —
+  properness, telescoping, normalisation, boundedness. These are the properties the
+  design rests on, so they are asserted directly rather than tested by example.
+- **Test the detectors.** An audit suite that would not catch a real failure is worse
+  than none, because it manufactures confidence.
+
+`(slow)` marks the five.
+
+
+### `tests/invariants/test_i10_determinism.py` — 12
+
+I10 — reproducibility given (patient, seed, config_hash); verified bit-for-bit across macOS/numpy 1.26 and Linux/numpy 2.4.
+
+- `test_episode_deterministic_under_seed`
+- `test_different_seeds_can_differ`
+- `test_corpus_generation_is_reproducible`
+- `test_config_hash_changes_when_config_changes`
+- `test_config_hash_is_stable`
+- `test_trajectory_records_the_config_hash`
+- `test_budget_never_exceeded`
+- `test_remaining_budget_in_observation_matches_ledger`
+- `test_max_turns_enforced`
+- `test_terminates_on_diagnose_and_abstain`
+- `test_repeat_order_is_deduped`
+- `test_stepping_after_termination_raises`
+
+### `tests/invariants/test_i11_reward_is_finite.py` — 7
+
+I11 — NaN/inf is a hard failure, never clipped away silently.
+
+- `test_reward_finite_over_random_policies`
+- `test_reward_finite_over_full_corpus`  *(slow)*
+- `test_nan_belief_raises_rather_than_being_clipped`
+- `test_inf_belief_raises`
+- `test_posterior_stays_finite_under_extreme_evidence`
+- `test_posterior_rejects_non_finite_prior`
+- `test_engine_raises_on_non_finite_total`
+
+### `tests/invariants/test_i12_eval_split_frozen.py` — 10
+
+I12 — the loader is monkeypatched to raise on eval paths during training.
+
+- `test_splits_are_disjoint`
+- `test_splits_are_deterministic`
+- `test_holdout_systems_are_absent_from_train_and_eval`
+- `test_eval_split_hash_matches`
+- `test_drifted_eval_split_is_rejected`
+- `test_missing_frozen_file_is_rejected`
+- `test_training_never_reads_eval_split`
+- `test_training_loader_is_guarded`
+- `test_eval_fraction_is_respected`
+- `test_bad_eval_fraction_raises`
+
+### `tests/invariants/test_i1_no_ground_truth_in_observation.py` — 7
+
+I1 — structural: the `Observation` type has no field that could hold a label.
+
+- `test_patient_view_cannot_carry_the_condition`
+- `test_observation_schema_has_no_label_field`
+- `test_no_label_string_in_observation_fixture`
+- `test_no_label_string_in_observation_full_corpus`  *(slow)*
+- `test_no_label_string_for_every_condition`  *(slow)*
+- `test_leak_detector_actually_fires`
+- `test_observation_strings_covers_every_string_field`
+
+### `tests/invariants/test_i2_allowlist_fails_closed.py` — 9
+
+I2 — an unknown resource type raises in strict mode rather than passing through.
+
+- `test_unknown_resource_type_raises_in_strict_mode`
+- `test_unknown_resource_type_dropped_when_not_strict`
+- `test_no_blocked_resource_survives_the_filter`
+- `test_every_blocked_type_is_actually_present_in_the_source`
+- `test_allowlist_and_blocklist_are_disjoint`
+- `test_permitted_resources_drop_unlisted_fields`
+- `test_observation_schema_forbids_extra_fields`
+- `test_filter_is_idempotent`
+- `test_observation_is_json_serializable_and_stable`
+
+### `tests/invariants/test_i3_global_action_menu.py` — 9
+
+I3 — set equality of action ids across patients; mutating a condition changes nothing.
+
+- `test_build_menu_takes_no_patient`
+- `test_menu_identical_across_patients`
+- `test_menu_independent_of_ground_truth`
+- `test_action_ids_are_content_hashed_not_positional`
+- `test_action_ids_stable_under_catalog_growth`
+- `test_menu_covers_every_catalog_entry`
+- `test_menu_has_diagnose_and_abstain`
+- `test_menu_size_within_spec`
+- `test_off_menu_action_is_rejected`
+
+### `tests/invariants/test_i4_observation_model_is_total.py` — 11
+
+I4 — full cross product covered; the side-channel test trains on *which* tests returned values, ignoring the values.
+
+- `test_every_pair_has_a_distribution`
+- `test_lookup_miss_raises_rather_than_defaulting`
+- `test_sampling_is_total`
+- `test_distributions_normalize`
+- `test_no_zero_likelihood_anywhere`
+- `test_sampled_values_in_plausible_range`
+- `test_deterministic_under_seed`
+- `test_every_patient_has_every_analyte`
+- `test_no_side_channel`
+- `test_no_side_channel_learned`  *(slow)*
+- `test_model_build_is_cached_and_identical`
+
+### `tests/invariants/test_i5_tests_never_pay.py` — 9
+
+I5 — property test over every action and reachable state. The invariant most likely to be broken by a well-meaning future edit.
+
+- `test_cost_table_covers_menu`
+- `test_missing_cost_raises_rather_than_defaulting`
+- `test_cost_term_is_never_positive`
+- `test_turn_penalty_is_never_positive`
+- `test_cost_plus_verify_is_never_positive`
+- `test_config_validator_refuses_profitable_testing`
+- `test_config_validator_refuses_verify_fraction_at_one`
+- `test_verify_is_zero_in_expectation_for_chance_predictions`
+- `test_duplicate_order_costs_nothing`
+
+### `tests/invariants/test_i6_shaping_is_potential_based.py` — 10
+
+I6 — telescoping, closed-loop-zero, and policy invariance on a brute-forced toy MDP.
+
+- `test_shaping_telescopes[1.0]`
+- `test_shaping_telescopes[0.99]`
+- `test_shaping_telescopes[0.5]`
+- `test_plain_sum_matches_telescoped_at_gamma_one`
+- `test_closed_loop_shaping_is_zero`
+- `test_shaping_depends_only_on_endpoints`
+- `test_potential_is_negative_entropy_and_bounded`
+- `test_shaping_rejects_bad_gamma`
+- `test_no_shaping_for_a_single_state`
+- `test_shaping_preserves_optimal_policy`  *(slow)*
+
+### `tests/invariants/test_i7_proper_scoring_rule.py` — 11
+
+I7 — properness. `test_brier_is_proper` is the single most important test in the repo.
+
+- `test_brier_is_proper`
+- `test_brier_bounded_and_finite`
+- `test_uniform_report_scores_exactly_zero`
+- `test_more_mass_on_truth_scores_higher`
+- `test_flat_distribution_scores_below_confident_correct`
+- `test_severity_weight_orders_correctly`
+- `test_label_set_is_flat`
+- `test_label_set_frozen`
+- `test_unknown_label_in_report_raises`
+- `test_unnormalised_report_raises`
+- `test_score_bounds_are_finite`
+
+### `tests/invariants/test_i8_reward_is_pure.py` — 6
+
+I8 — same input twice, identical output; no RNG or clock reachable.
+
+- `test_same_input_gives_identical_output`
+- `test_scoring_does_not_mutate_its_inputs`
+- `test_rescoring_under_new_weights_changes_only_the_weighted_terms`
+- `test_engine_source_has_no_rng_or_clock`
+- `test_reward_does_not_import_policy_or_train`
+- `test_env_does_not_import_reward`
+
+### `tests/invariants/test_i9_bayes_ceiling.py` — 5
+
+I9 — includes `test_ceiling_assertion_fires_on_synthetic_violation`: testing the *detector*, not just the thing it detects.
+
+- `test_hard_ceiling_is_never_exceeded`
+- `test_expected_ceiling_bounds_the_bayes_report`
+- `test_more_evidence_never_lowers_the_value_in_expectation`
+- `test_ceiling_assertion_fires_on_synthetic_violation`
+- `test_ceiling_is_upper_bound_on_toy_mdp`
+
+### `tests/property/test_math_properties.py` — 11
+
+Hypothesis-based. The properties the design rests on, asserted directly rather than by example.
+
+- `test_brier_is_bounded_and_finite`
+- `test_brier_properness_property`
+- `test_entropy_bounds`
+- `test_shaping_telescopes_property`
+- `test_closed_loop_shaping_is_zero_property`
+- `test_belief_validation_rejects_unnormalised`
+- `test_posterior_is_order_invariant`
+- `test_posterior_normalizes_and_is_nonnegative`
+- `test_irrelevant_evidence_leaves_posterior_unchanged`
+- `test_distribution_roundtrip`
+- `test_prior_shape_mismatch_raises`
+
+### `tests/golden/test_golden.py` — 7
+
+Frozen fixtures for the Bayes solver and the reward engine — both get refactored, both break subtly.
+
+- `test_label_set_hash_matches_golden`
+- `test_menu_fingerprint_matches_golden`
+- `test_config_hashes_match_golden`
+- `test_posterior_matches_hand_computed`
+- `test_rescoring_stored_trajectory_matches`
+- `test_golden_trajectories_are_wellformed`
+- `test_golden_covers_every_reward_term`
+
+### `tests/unit/test_env_components.py` — 17
+
+- `test_vocabulary_is_global`
+- `test_vocabulary_does_not_depend_on_any_patient`
+- `test_scrub_redacts_longest_form_first`
+- `test_scrub_is_case_insensitive_and_word_bounded`
+- `test_scrub_is_idempotent`
+- `test_taxonomy_rejects_duplicate_slugs`
+- `test_taxonomy_rejects_bad_urgency`
+- `test_taxonomy_rejects_zero_prior`
+- `test_unknown_slug_raises`
+- `test_catalog_rejects_unreachable_analyte`
+- `test_catalog_rejects_unnormalised_categorical`
+- `test_categorical_normal_value_is_first`
+- `test_observation_model_rejects_unknown_condition`
+- `test_posterior_moves_correct_direction`
+- `test_action_menu_rejects_duplicate_ids`
+- `test_episode_config_rejects_default_cost`
+- `test_budget_weights_must_normalise`
+
+### `tests/unit/test_eval_audit.py` — 17
+
+- `test_blank_record_baseline`
+- `test_no_test_ablation`
+- `test_leakage_ablation`
+- `test_leak_probe_positive_control_is_large`
+- `test_shuffled_labels`
+- `test_counterfactual_perturbation`
+- `test_clinical_spot_checks_reference_real_things`
+- `test_bayes_ceiling_probe`
+- `test_held_out_modules_reports_a_gap`
+- `test_audit_suite_runs_end_to_end_on_fixture`
+- `test_lazy_policy_scores_below_working_policy`
+- `test_abstain_priced_between_correct_and_incorrect`
+- `test_policy_behavior_varies_with_budget`
+- `test_pareto_sweep_covers_budget_range`
+- `test_pareto_is_broadly_monotone`
+- `test_calibration_metrics_match_reference`
+- `test_calibration_rejects_bad_input`
+
+### `tests/unit/test_module_boundaries.py` — 6
+
+Parses the source, so an import violation is caught even inside a function body.
+
+- `test_subpackage_respects_its_import_rules[data]`
+- `test_subpackage_respects_its_import_rules[env]`
+- `test_subpackage_respects_its_import_rules[reward]`
+- `test_env_step_returns_no_reward`
+- `test_boundary_checker_would_catch_a_violation`
+- `test_no_module_reads_config_at_import_time`
+
+### `tests/unit/test_phase0_gate_a.py` — 12
+
+Gate A, including `test_gate_a_thresholds_preregistered`, which compares git commit timestamps.
+
+- `test_gate_a_config_exists_and_is_committed`
+- `test_gate_a_thresholds_preregistered`
+- `test_gate_a_declares_thresholds_and_failure_actions`
+- `test_gate_a2_changes_no_substantive_threshold`
+- `test_probe_conditions_disjoint`
+- `test_blank_baseline_is_prior`
+- `test_prize_is_large_enough_to_train_on`
+- `test_leak_probe_is_not_blind`
+- `test_taxonomy_mapping_total`
+- `test_every_corpus_condition_mapped`
+- `test_unmapped_snomed_code_raises`
+- `test_prior_is_normalised_and_positive`
+
+### `tests/unit/test_phase3_gate_b.py` — 8
+
+Gate B and the B2 amendment, including that B2 moved no substantive threshold.
+
+- `test_gate_b_config_exists_and_is_committed`
+- `test_gate_b_thresholds_preregistered`
+- `test_gate_b_declares_every_criterion_from_claude_md`
+- `test_gate_b_declares_failure_actions`
+- `test_gate_b_pass_bar_is_a_procedure_not_a_number`
+- `test_gate_b_checker_evaluates_a_synthetic_result`
+- `test_gate_b_checker_reports_missing_criteria_as_skipped`
+- `test_gate_b2_changes_no_substantive_threshold`
+
+### `tests/unit/test_policy_decoding.py` — 26
+
+- `test_schema_is_a_valid_json_schema`
+- `test_constrained_decoding_always_valid`
+- `test_probabilities_sum_to_one_post_decode`
+- `test_grammar_rejects_off_menu_actions`
+- `test_action_id_is_derived_not_generated`
+- `test_residual_mass_is_spread_not_renormalised`
+- `test_overclaimed_mass_is_renormalised`
+- `test_duplicate_conditions_are_summed`
+- `test_degenerate_reports_raise`
+- `test_non_json_output_raises_rather_than_defaulting`
+- `test_parse_round_trips_every_action_kind`
+- `test_prompt_contains_no_label_string`
+- `test_prompt_leak_check_actually_fires`
+- `test_prompt_is_a_function_of_the_observation_alone`
+- `test_menu_in_prompt_is_identical_across_patients`
+- `test_chat_messages_have_system_and_user_roles`
+- `test_structured_output_api_is_detected_not_pinned[structured_outputs-StructuredOutputsParams]`
+- `test_structured_output_api_is_detected_not_pinned[guided_decoding-GuidedDecodingParams]`
+- `test_unknown_structured_output_api_raises_rather_than_degrading`
+- `test_token_budget_covers_the_widest_action`
+- `test_truncated_generation_is_reported_as_truncation`
+- `test_truncation_is_retried_once_before_failing`
+- `test_reasoning_length_is_bounded_by_the_grammar_not_just_documented`
+- `test_sampled_actions_still_satisfy_the_bounded_schema`
+- `test_reasoning_pattern_excludes_control_characters`
+- `test_control_characters_do_not_kill_a_run`
+
+### `tests/unit/test_policy_rejection.py` — 12
+
+Includes `test_filter_rejects_lucky_single_sample` — correct once in 8 does not pass.
+
+- `test_filter_rejects_high_cost_correct`
+- `test_filter_rejects_lucky_single_sample`
+- `test_reproducible_group_is_accepted`
+- `test_process_filter_uses_posterior_not_outcome`
+- `test_process_fraction_is_one_for_no_tests`
+- `test_process_filter_separates_informative_from_uninformative`
+- `test_ordered_evidence_ignores_duplicate_and_refused_orders`
+- `test_condition_balance_within_tolerance`
+- `test_balance_keeps_the_best_examples`
+- `test_empty_group_raises`
+- `test_bad_config_raises`
+- `test_lazy_policy_is_filtered_out`
+
+### `tests/unit/test_policy_sft.py` — 18
+
+- `test_soft_labels_match_posterior`
+- `test_unnamed_tail_is_max_entropy`
+- `test_soft_labels_normalize`
+- `test_sft_targets_not_onehot`
+- `test_abstain_present_in_sft_set`
+- `test_abstentions_are_seeded_from_ambiguous_cases`
+- `test_every_completion_parses_as_a_legal_action`
+- `test_examples_carry_no_assistant_turn_in_the_prompt`
+- `test_build_examples_refuses_a_privileged_trace`
+- `test_validate_rejects_collapsed_targets`
+- `test_validate_rejects_a_set_with_no_abstentions`
+- `test_soft_label_wire_names_the_top_k`
+- `test_dataset_round_trips_through_jsonl`
+- `test_sft_config_refuses_to_overtrain`
+- `test_trl_config_drops_optional_fields_loudly`
+- `test_trl_config_refuses_to_lose_a_field_that_defines_the_run`
+- `test_sft_rows_are_prompt_completion_not_bare_messages`
+- `test_sft_targets_match_the_decoder_key_order`
+
+### `tests/unit/test_policy_teacher.py` — 17
+
+De-leaking, including the positive control that *must* fire and the posterior-drawn ablation null.
+
+- `test_privileged_trace_leaks_and_the_detector_fires`
+- `test_grounding_check_fires_on_privileged_traces`
+- `test_no_trace_mentions_condition_before_diagnosis_turn`
+- `test_deleaked_traces_all_survive_the_filter`
+- `test_deleak_is_label_blind_exactly`
+- `test_deleak_ablation_gap_is_near_zero`
+- `test_deleak_ablation_detects_the_privileged_trace`
+- `test_deleaked_trace_still_justifies_action`
+- `test_deleaking_preserves_the_action_sequence`
+- `test_teacher_report_is_the_posterior_not_one_hot`
+- `test_teacher_trajectories_respect_action_schema`
+- `test_teacher_does_not_shotgun`
+- `test_word_boundary_matching_does_not_fire_inside_words`
+- `test_mentioned_conditions_finds_real_mentions`
+- `test_grounding_rejects_an_assertion_without_a_probability`
+- `test_grounding_rejects_an_unranked_mention`
+- `test_leak_detector_similarity_arm_catches_paraphrase`
+
+### `tests/unit/test_reward_components.py` — 18
+
+- `test_contraindication_penalty_dominates_suboptimal`
+- `test_contraindication_dominates_even_when_the_drug_is_first_line`
+- `test_lucky_treatment_with_wrong_dx_scores_low`
+- `test_coherent_treatment_scores_above_incoherent`
+- `test_allergy_is_detected`
+- `test_pregnancy_contraindication`
+- `test_drug_interaction_needs_both_drugs`
+- `test_prescribing_nothing_is_never_negative`
+- `test_violations_are_order_independent`
+- `test_unknown_treatment_in_config_raises`
+- `test_commit_is_mandatory`
+- `test_result_not_visible_before_commit`
+- `test_verify_score_zero_for_chance_predictions`
+- `test_verify_is_zero_when_nothing_was_revealed`
+- `test_verify_rejects_fraction_at_or_above_one`
+- `test_bucket_classification`
+- `test_bucket_priors_sum_to_one`
+- `test_wrong_value_type_raises`
+
+### `tests/unit/test_rollout_batching.py` — 11
+
+- `test_lockstep_batches_the_whole_group_per_round`
+- `test_batch_shrinks_as_episodes_terminate`
+- `test_lockstep_matches_sequential_exactly`
+- `test_heuristic_policies_take_the_sequential_path`
+- `test_batched_act_refuses_unshared_backends`
+- `test_lockstep_across_patients`
+- `test_misaligned_batch_output_is_caught`
+- `test_aligned_batch_output_passes_the_guard`
+- `test_each_prompt_names_only_its_own_patient`
+- `test_failed_generations_are_recorded_so_the_metric_can_fail`
+- `test_successful_generations_are_flagged_parsed`
+
+### `tests/unit/test_train_grpo.py` — 36
+
+The largest file, because `NullUpdater` makes the entire loop testable with no GPU at all.
+
+- `test_advantage_zero_when_group_identical`
+- `test_advantages_are_standardised`
+- `test_assert_group_has_variance_fires_on_a_flat_group`
+- `test_kl_matches_reference_implementation`
+- `test_kl_is_zero_for_identical_policies`
+- `test_kl_is_never_negative`
+- `test_kl_rejects_non_finite_logprobs`
+- `test_clipped_surrogate_clips_large_ratios`
+- `test_ceiling_assertion_fires_on_synthetic_violation`
+- `test_trainer_halts_on_an_injected_ceiling_violation`
+- `test_running_ceiling_monitor_detects_a_sustained_breach`
+- `test_cost_monitor_detects_collapse_to_zero_tests`
+- `test_cost_monitor_detects_collapse_to_the_budget_cap`
+- `test_cost_monitor_is_quiet_on_a_healthy_distribution`
+- `test_degenerate_group_monitor_uses_a_rate_not_a_single_group`
+- `test_curriculum_advances_on_criterion`
+- `test_curriculum_does_not_skip_stages`
+- `test_curriculum_rejects_an_unknown_stage`
+- `test_trainer_advances_only_after_a_full_window`
+- `test_training_never_reads_eval_split`
+- `test_trainer_refuses_to_start_without_a_frozen_eval_split`
+- `test_loop_runs_and_persists_every_rollout`
+- `test_stored_lines_declare_their_env_config`
+- `test_sequences_carry_the_episode_advantage`
+- `test_rollouts_without_generations_contribute_nothing`
+- `test_group_shares_one_budget`
+- `test_rollout_weights_are_synced_every_step`
+- `test_sync_cadence_is_configurable_and_respected`
+- `test_torch_updater_refuses_to_sync_into_the_void`
+- `test_loop_is_deterministic_under_seed`
+- `test_resume_restores_step_stage_and_monitor_windows`
+- `test_resume_continues_the_rng_rather_than_repeating_it`
+- `test_load_state_returns_false_with_nothing_to_resume`
+- `test_resume_refuses_across_a_reward_config_change`
+- `test_checkpoint_survives_a_halted_run`
+- `test_token_weighted_accumulation_matches_a_single_pass`
+
+### `tests/unit/test_trajectory_store.py` — 9
+
+- `test_store_round_trips`
+- `test_stored_trajectory_excludes_ground_truth`
+- `test_declared_distribution_shape_carries_no_information`
+- `test_append_rejects_undeclared_env_config`
+- `test_declared_extra_env_config_is_accepted`
+- `test_reopening_with_drifted_hashes_raises`
+- `test_malformed_line_raises_rather_than_being_skipped`
+- `test_missing_required_key_raises`
+- `test_rescoring_a_stored_run_reproduces_the_original_scores`
