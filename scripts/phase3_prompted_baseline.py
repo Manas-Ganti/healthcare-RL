@@ -38,6 +38,14 @@ from dxenv.policy.decoding import action_json_schema, schema_fingerprint
 from dxenv.policy.llm import LLMPolicy, RandomBackend, VLLMBackend
 from dxenv.policy.rollout import RolloutContext, constant_factory, rollout_group
 
+MAX_RECORDED_FAILURES = 40
+"""How many unparseable completions to keep per policy row.
+
+Enough to see the pattern -- whether failures cluster at the token cap, at a
+grammar-terminated EOS, or on one turn type -- without letting a pathological run write a
+results file measured in gigabytes. If every generation fails, the first forty say so.
+"""
+
 
 def calibration_margin(rollouts: Sequence[Any], taxonomy: Taxonomy, score_fn: Any) -> float:
     """Reported-distribution score minus the same distribution collapsed onto its argmax.
@@ -80,6 +88,7 @@ def evaluate(
 ) -> dict[str, Any]:
     per_patient_best, all_rewards, group_stds, tests, first_sample = [], [], [], [], []
     ceilings, everything, schema_valid = [], [], []
+    failures: list[dict[str, Any]] = []
     # Progress, because this runs for hours and prints nothing otherwise: vLLM's own
     # progress bar is off (use_tqdm=False, since one bar per batched call would be noise),
     # so without this a live job is indistinguishable from a hung one.
@@ -107,7 +116,24 @@ def evaluate(
             # Read the recorded flag rather than re-parsing. Re-parsing only ever saw
             # generations that had already parsed, which made this metric 1.0 by
             # construction and the gate criterion incapable of failing.
-            schema_valid.extend(bool(g.get("parsed", True)) for g in r.generations)
+            for g in r.generations:
+                ok = bool(g.get("parsed", True))
+                schema_valid.append(ok)
+                if not ok and len(failures) < MAX_RECORDED_FAILURES:
+                    # Keep the FAILED completions only. The store drops `generations`
+                    # because they are enormous, which left schema_valid_fraction
+                    # detectable but not diagnosable: you learn 1.5% of generations did
+                    # not parse and have nothing to look at. Failures are a small
+                    # fraction by definition, so keeping them is cheap, and the two known
+                    # causes -- a grammar-terminated request and a completion that ran out
+                    # of tokens mid-string -- are distinguishable only from the text and
+                    # the finish reason.
+                    failures.append({
+                        "policy": name,
+                        "turn": g.get("turn"),
+                        "finish_reason": g.get("finish_reason"),
+                        "completion": g.get("completion"),
+                    })
         per_patient_best.append(max(rewards))
         first_sample.append(rewards[0])
         all_rewards.extend(rewards)
@@ -128,6 +154,7 @@ def evaluate(
         "per_patient_best": per_patient_best,
         "per_patient_first": first_sample,
         "group_stds": group_stds,
+        "schema_failures": failures,
     }
 
 

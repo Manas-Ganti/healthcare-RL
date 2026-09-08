@@ -401,6 +401,98 @@ invented, so the terminal score rewards learning a synthetic mapping that 99 ste
 that from a reward-shape problem is the next experiment, not a conclusion this run
 supports.
 
+## Gate B on the GRPO adapter — the mean rose and the tail collapsed
+
+Same instrument, same 200 patients, same bar. **FAIL under both gate_b and gate_b2**, on
+pass@k and on schema validity.
+
+| | base 7B | SFT | GRPO |
+|---|---|---|---|
+| mean R | −0.689 | −0.664 | **−0.569** |
+| best@8 | −0.480 | — | **+0.034** |
+| pass@1 | 0.000 | 0.080 | 0.010 |
+| pass@8 | 0.030 | **0.330** | 0.105 |
+| pass@8 − pass@1 | +0.030 | **+0.250** | +0.095 |
+| within-group std | 0.147 | 0.709 | 0.371 |
+| degenerate groups | 15.5% | — | 0.5% |
+| calibration margin | +1.0045 | +1.0778 | +0.8489 |
+| schema valid | 1.000 | 0.997 | **0.985** |
+| tests / episode | 5.47 | — | 4.69 |
+
+Two things moved in opposite directions, and the gate only sees one of them.
+
+**The mean improved.** −0.664 → −0.569, and best-of-8 cleared the blank-record floor
+(+0.034 against −0.018) for the first time in any arm. GRPO also fixed the SFT policy's
+degenerate group rate: 0.5%, against 15.5% for the base model.
+
+**The tail collapsed.** Within-group spread halved, 0.709 → 0.371, and with it the pass
+rates: pass@8 0.330 → 0.105, pass@1 0.080 → 0.010. The pass bar (+0.675) sits far above the
+mean (−0.569), so *clearing it is a tail event*. A policy that becomes more consistent
+loses tail events even as its centre improves, and the gate's headline criterion is a tail
+statistic.
+
+That is the familiar RLVR trade -- RL sharpens the policy toward its own mean and spends
+the diversity it was given -- with one wrinkle worth naming: **pass@1 fell too**. The usual
+story is pass@1 up, pass@k down. Here both fell while the mean rose, which says the
+compression was symmetric rather than a sharpening onto the good samples.
+
+The consequence is practical rather than cosmetic. pass@k is the exploration budget the
+*next* round of GRPO would have to sharpen, and this run spent two thirds of it to buy
++0.095 of mean reward. Continuing from this checkpoint has less to work with than starting
+again from SFT would.
+
+### The verdict had to be fixed before it could be read
+
+The first run of the checker reported a different and meaningless FAIL. The subject chain
+was `sft -> prompted -> random_schema` with no `grpo` entry, so a GRPO results file fell
+through to the grammar sampler: five of six criteria were computed against a policy with no
+model behind it, printed under a heading naming the adapter, and a verdict was issued
+either way. Only `calibration_margin` and `schema_valid_fraction` read the subject, because
+those are top-level fields -- so the output was a mix of two policies.
+
+The tell was arithmetic: the reported headroom of 2.1067 is `1.7220 − (−0.3847)`, and
+−0.3847 is `random_schema`'s mean, not the adapter's.
+
+Fixed by honouring the `subject_policy` the results file already declares, and by refusing
+rather than falling back when the declared row is absent. `--gate` was added at the same
+time so the B2 amendment can be evaluated without editing the script, and an amendment now
+resolves against the gate named in its `amends:` field rather than against its own
+`unchanged_from_gate_b` list -- which omits `degenerate_group_std` and would have dropped
+that criterion silently. `unchanged_from_gate_b` is now checked as the redundant assertion
+it is: a value disagreeing with the amended gate refuses to run.
+
+### Schema validity regressed, and the artefacts could not say why
+
+0.997 → 0.9849, a fivefold rise in unparseable generations, and below even the amended 0.99
+floor. `gate_b2.yaml`'s pre-registered reading of that is "a SYSTEMATIC decoding problem,
+not the tail of long-horizon sampling".
+
+The leading hypothesis is KL drift: the adapter moved away from the SFT reference over the
+run (KL 0.001 → 0.044), and a drifted policy writes longer reasoning that runs into the
+700-character `pattern` bound mid-string, yielding a structurally valid prefix that is not
+parseable. The GRPO arm also evaluates at 20 turns rather than 8, so it emits more
+generations per episode with more opportunity to hit it.
+
+**Neither could be checked**, because the sweep dropped `generations` before persisting --
+correctly, since they are enormous, but it left the metric detectable and not diagnosable.
+Failed completions are now kept (capped at 40 per row) with their `finish_reason`, which is
+what distinguishes a grammar-terminated request from one that ran out of tokens. The
+diagnosis waits on the next sweep.
+
+### What the gate does and does not say here
+
+Gate B is the Phase 3 go/no-go: *may we start GRPO?* That question was answered by the SFT
+row, which passed under gate_b2. Running the same instrument on the Phase 4 output is a
+**diagnostic, not a gate decision** -- the pre-registered `on_failure` action for pass@k
+("do NOT proceed to GRPO") is addressed to a decision already taken on different evidence.
+
+It is reported because it is informative, and because reporting only the arm where the
+instrument was designed to be used would be selective. The honest summary is that GRPO
+improved the mean, cleared the floor on best-of-8, and paid for it in the diversity a
+subsequent RL round would need.
+
+---
+
 ### The turn budget differs between training and evaluation
 
 Recorded before the Gate B numbers landed, because it changes how they read.

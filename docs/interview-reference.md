@@ -663,10 +663,46 @@ rather than repairing a broken instrument.
 `test_gate_b2_changes_no_substantive_threshold` enforces mechanically that the amendment
 moved nothing else.
 
-### Measurement 3 — the GRPO adapter. In progress
+### Measurement 3 — the GRPO adapter. **FAIL under both gates**
 
-At last report ≈ **−0.62** mean R. Standing order: base −0.689 → SFT −0.664 → GRPO −0.620.
-Monotone but marginal, and all far below the blank-record floor (−0.018).
+| | base 7B | SFT | GRPO |
+|---|---|---|---|
+| mean R | −0.689 | −0.664 | **−0.569** |
+| best@8 | −0.480 | — | **+0.034** |
+| pass@1 | 0.000 | 0.080 | 0.010 |
+| pass@8 | 0.030 | **0.330** | 0.105 |
+| pass@8 − pass@1 | +0.030 | **+0.250** | +0.095 |
+| within-group std | 0.147 | 0.709 | 0.371 |
+| degenerate groups | 15.5% | — | 0.5% |
+| calibration margin | +1.0045 | +1.0778 | +0.8489 |
+| schema valid | 1.000 | 0.997 | **0.985** |
+| tests / episode | 5.47 | — | 4.69 |
+
+Fails on **pass@k** (+0.095, need +0.15) and **schema validity** (0.985, below even the
+amended 0.99). Passes the other four.
+
+**The mean rose and the tail collapsed** — and the gate only sees the tail. Mean improved
+−0.664 → −0.569, best-of-8 cleared the blank-record floor (+0.034 vs −0.018) for the first
+time in any arm, and the degenerate-group rate fell to 0.5%. But within-group spread halved,
+0.709 → 0.371, and the pass rates went with it: pass@8 0.330 → 0.105.
+
+The pass bar (+0.675) sits far above the mean (−0.569), so **clearing it is a tail event**. A
+policy that becomes more consistent loses tail events even as its centre improves.
+
+That is the familiar RLVR trade, with one wrinkle worth naming: **pass@1 fell too** (0.080 →
+0.010). The usual story is pass@1 up, pass@k down — RL sharpening onto the good samples.
+Here both fell while the mean rose, so the compression was *symmetric* rather than a
+sharpening.
+
+The consequence is practical: **pass@k is the exploration budget the next round of GRPO
+would sharpen**, and this run spent two thirds of it to buy +0.095 of mean reward.
+Continuing from this checkpoint has less to work with than restarting from SFT.
+
+**What the gate does not say here.** Gate B is the Phase 3 go/no-go — *may we start GRPO?* —
+and that was answered by the SFT row. Running the same instrument on the Phase 4 output is a
+**diagnostic, not a gate decision**; the pre-registered "do NOT proceed to GRPO" action is
+addressed to a decision already taken on different evidence. Reported anyway, because
+reporting only the arm where the instrument was designed to be used would be selective.
 
 **Known confound, recorded rather than fixed:** GRPO trained entirely under an 8-turn budget
 (all 99 steps in curriculum stage 1) but Gate B evaluates at the standard 20 turns. The
@@ -992,9 +1028,20 @@ doing nothing today.
 Deferred. If added it must be an explicit cost matrix over condition pairs **keyed on
 consequence of the error**, never on semantic similarity of names.
 
-### 13.12 Gate B measurement 3 is incomplete
+### 13.12 GRPO spent most of its exploration budget
 
-The GRPO arm was still running at the time of writing. Numbers quoted for it are partial.
+pass@8 fell 0.330 → 0.105 and within-group std 0.709 → 0.371 while the mean improved. The
+diversity a subsequent RL round would need is largely gone, so continuing from this
+checkpoint is worse-positioned than restarting from SFT.
+
+### 13.13 Schema validity regressed and cannot yet be diagnosed
+
+0.997 → 0.985, below the amended 0.99 floor, which `gate_b2.yaml` pre-registers as meaning a
+*systematic* decoding problem. The leading hypothesis is KL drift (0.001 → 0.044) producing
+longer reasoning that hits the 700-char `pattern` bound mid-string, compounded by evaluating
+at 20 turns rather than 8. Unverifiable from the stored artefacts, because the sweep dropped
+`generations` before persisting — now fixed by keeping the failed completions and their
+`finish_reason`.
 
 ---
 
@@ -1098,6 +1145,26 @@ reorders outputs would corrupt every episode without erroring.
 while the observation scrubber keeps the **wide** ones. The asymmetry runs opposite ways in the
 two places, and the taxonomy already encoded that distinction.
 
+### A gate that measured the wrong policy and printed a verdict anyway
+
+The first Gate B run on the GRPO adapter reported `pass@8 = pass@1 = 0.010, gap +0.000`. The
+subject chain was `sft -> prompted -> random_schema` with **no `grpo` entry**, so the results
+file fell through to the grammar sampler. Five of six criteria were computed against a policy
+with no model behind it, printed under a heading naming the adapter, and a verdict was issued
+either way. Only `calibration_margin` and `schema_valid_fraction` read the subject, because
+those are top-level fields — so the output was a **mix of two policies**.
+
+The tell was arithmetic, not intuition: the reported headroom of 2.1067 is
+`1.7220 − (−0.3847)`, and −0.3847 is `random_schema`'s mean. The printed NOTE — "the subject
+is a grammar with no policy behind it" — was accidentally describing what it had actually
+measured.
+
+*Fix:* honour the `subject_policy` the results file already declares, and **refuse rather
+than fall back** when the declared row is absent.
+*Lesson:* a fallback chain in a measurement path is a silent-wrong-answer generator. This is
+the same failure shape as the `schema_valid_fraction` bug — an instrument that reports
+confidently on something other than what you asked about.
+
 ### Committed lint errors twice
 
 My `&&` chain didn't extend to the commit line, so verification passed and the commit went
@@ -1132,6 +1199,10 @@ through regardless.
 | GRPO steps / episodes | 99 / ~6,300 |
 | GRPO tests per episode | **0.79 (SFT) → 3.5 (GRPO)** |
 | GRPO reward slope after step 20 | **−0.00035 / step** |
+| Gate B mean R: base / SFT / GRPO | −0.689 / −0.664 / **−0.569** |
+| Gate B pass@8: base / SFT / GRPO | 0.030 / **0.330** / 0.105 |
+| Gate B group std: base / SFT / GRPO | 0.147 / 0.709 / 0.371 |
+| GRPO best@8 (first arm above the floor) | **+0.034** |
 | De-leak ablation gap | +0.732 privileged → **+0.036** de-leaked |
 | Wrong ablation null would report | +0.63 |
 

@@ -174,8 +174,9 @@ types on every commit, and the corpus-wide suite nightly.
 
 **What has actually run.** Gate A passes. Gate B was measured three times — the prompted 7B
 (FAIL, and *how* it fails is the finding), the SFT'd policy (PASS under the amended
-gate_b2), and the GRPO adapter. GRPO trained for 99 steps; the curve is committed at
-`runs/grpo/curve.png` and regenerates from `runs/grpo/steps.jsonl`.
+gate_b2, the go/no-go into GRPO), and the GRPO adapter (FAIL, on pass@k and schema
+validity). GRPO trained for 99 steps; the curve is committed at `runs/grpo/curve.png` and
+regenerates from `runs/grpo/steps.jsonl`.
 
 **The headline result is about the environment, not the policy.** GRPO took test-ordering
 from 0.79 to 3.5 per episode with no reward term for testing — under I5 tests only ever
@@ -214,8 +215,12 @@ offline rescoring free.
   same generative model that produced the data. This environment measures whether a policy
   can learn a synthetic mapping, not whether it can diagnose. It is the caveat underneath
   every number here.
-- **No arm has cleared the no-information floor.** Base −0.689, SFT −0.664, GRPO −0.620,
-  against a blank-record floor of −0.018.
+- **No arm has cleared the no-information floor on mean reward.** Base −0.689, SFT −0.664,
+  GRPO −0.569, against a blank-record floor of −0.018. GRPO's best-of-8 does clear it
+  (+0.034), the first arm to.
+- **GRPO spent most of its exploration budget.** pass@8 fell 0.330 → 0.105 and within-group
+  spread halved while the mean improved — the diversity a further RL round would sharpen is
+  largely gone.
 - **The curriculum never advanced.** All 99 GRPO steps ran in `single_condition_short`, so
   the full-horizon and comorbid stages are untested in practice — and the policy was trained
   at 8 turns while Gate B evaluates at 20.
