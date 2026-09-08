@@ -65,17 +65,28 @@ pip install -q -e ".[dev,train]"
 # forces schema order, and produced an adapter that rambled in three languages. Rebuilding
 # costs 30 minutes; training on a mismatched set costs 95 minutes plus the Gate B run that
 # measures it.
+#
+# The check VALIDATES EACH TARGET AGAINST THE GRAMMAR, not just its key order. Key order
+# was the first mismatch found and checking only that let the second one straight through:
+# `probability` moved from a float to a pattern-bound string, which leaves every key
+# exactly where it was. A guard that only knows about the last failure is not a guard.
+# Fails closed -- any error at all rebuilds, because 30 minutes is cheaper than an adapter
+# trained on a shape the decoder cannot emit.
 if [[ -s runs/phase3/sft.jsonl ]] && python -c "
 import json, sys
+import jsonschema
 from dxenv.policy.decoding import action_json_schema
+schema = action_json_schema()
 declared = {v['properties']['kind']['const']: list(v['properties'])
-            for v in action_json_schema()['oneOf']}
+            for v in schema['oneOf']}
+validator = jsonschema.Draft202012Validator(schema)
 with open('runs/phase3/sft.jsonl') as fh:
     for line in fh:
         obj = json.loads(json.loads(line)['completion'])
         emitted = list(obj)
         if emitted != [k for k in declared[obj['kind']] if k in emitted]:
             sys.exit(1)
+        validator.validate(obj)
 "; then
     echo "reusing runs/phase3/sft.jsonl ($(wc -l < runs/phase3/sft.jsonl) examples, targets match the grammar)"
 else
