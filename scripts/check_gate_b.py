@@ -33,14 +33,56 @@ def skipped(name: str, detail: str) -> dict[str, Any]:
     return {"criterion": name, "status": "SKIP", "passed": False, "detail": detail}
 
 
+def load_gate(path: Path) -> dict[str, Any]:
+    """Load a gate, resolving an amendment against the gate it amends.
+
+    An amendment file carries only the threshold it changes. The rest are INHERITED from
+    the gate named in `amends:` rather than re-listed, so an amendment cannot silently drop
+    a criterion by forgetting to copy it forward -- which `gate_b2.yaml` does for
+    `degenerate_group_std`.
+
+    `unchanged_from_gate_b` is then a redundant restatement, and it is checked as one: if a
+    value there disagrees with the gate being amended, the amendment has moved a goalpost
+    while claiming not to, and that is refused rather than reported.
+    """
+    gate = yaml.safe_load(path.read_text())
+    if "amends" not in gate:
+        return gate
+    base = yaml.safe_load((path.parent / gate["amends"]).read_text())
+    for k, v in gate.get("unchanged_from_gate_b", {}).items():
+        if base["thresholds"][k] != v:
+            raise SystemExit(
+                f"{path.name} lists {k}={v} as unchanged from {gate['amends']}, which "
+                f"declares {base['thresholds'][k]}. An amendment may correct a "
+                f"specification error; it may not move a threshold."
+            )
+    gate["thresholds"] = {**base["thresholds"], **gate["thresholds"]}
+    gate.setdefault("on_failure", base["on_failure"])
+    return gate
+
+
 def evaluate(results: dict[str, Any], gate: dict[str, Any]) -> list[dict[str, Any]]:
     t = gate["thresholds"]
     rows = {r["policy"]: r for r in results["rows"]}
-    # `sft` is the row Gate B is really about: the pre-SFT `prompted` run answers "is
-    # SFT needed", the post-SFT run answers "may we start GRPO".
-    subject = rows.get("sft") or rows.get("prompted") or rows.get("random_schema")
+    # The results file DECLARES which row it is about, so honour that first. The fallback
+    # chain below is for older files that predate the field.
+    #
+    # This is not a cosmetic fix. The chain used to run sft -> prompted -> random_schema
+    # with no `grpo` entry, so a GRPO results file fell through to the grammar sampler and
+    # the gate reported five of its criteria against a policy that does not exist, under a
+    # heading naming the one it was asked about. It printed a verdict either way.
+    declared = results.get("subject_policy")
+    subject = rows.get(declared) if declared else None
+    if subject is None and declared:
+        raise SystemExit(
+            f"results declare subject_policy={declared!r} but carry no such row; "
+            f"rows present: {sorted(rows)}"
+        )
     if subject is None:
-        raise SystemExit("results contain neither a `prompted` nor a `random_schema` row")
+        subject = (rows.get("sft") or rows.get("grpo") or rows.get("prompted")
+                   or rows.get("random_schema"))
+    if subject is None:
+        raise SystemExit(f"no evaluable subject row; rows present: {sorted(rows)}")
     bar = float(results["gate_b_pass_bar"])
 
     best = np.array(subject["per_patient_best"], dtype=np.float64)
@@ -113,16 +155,20 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results", type=Path,
                     default=Path("runs/phase3/prompted_baseline.json"))
+    ap.add_argument("--gate", type=Path, default=GATE,
+                    help="gate config to evaluate against; pass gate_b2.yaml for the "
+                         "amendment. Both verdicts are reported, never one in place of "
+                         "the other.")
     args = ap.parse_args()
     if not args.results.exists():
         raise SystemExit(f"{args.results} does not exist; run phase3_prompted_baseline.py")
 
-    gate = yaml.safe_load(GATE.read_text())
+    gate = load_gate(args.gate)
     results = json.loads(args.results.read_text())
     rows = evaluate(results, gate)
     width = max(len(r["criterion"]) for r in rows)
     subject = results.get("subject_policy", "unknown")
-    print(f"subject policy: {subject}\n")
+    print(f"subject policy: {subject}   gate: {args.gate.name}\n")
     for r in rows:
         print(f"{r['status']:<5} {r['criterion']:<{width}}  {r['detail']}")
 
@@ -133,12 +179,12 @@ def main() -> None:
               "evaluated from this results file. A partial gate is not a gate.")
     else:
         print(f"\nGATE B: {'PASS' if not fails else 'FAIL'}")
-    if subject not in ("prompted", "sft"):
+    if subject == "random_schema":
         print(
-            f"\nNOTE: the subject is `{subject}`, not a prompted model. That row measures "
-            "the floor a prompted model has to beat -- a grammar with no policy behind it "
-            "-- so a FAIL here says nothing about any model. Re-run with --model on a CUDA "
-            "host to evaluate the gate as written."
+            "\nNOTE: the subject is `random_schema` -- a uniform sampler over the grammar "
+            "with no model behind it. That row measures the floor a policy has to beat, so "
+            "a FAIL here says nothing about any model. Re-run with --model on a CUDA host "
+            "to evaluate the gate as written."
         )
     if fails:
         print("\nDeclared actions on failure (gate_b.yaml, pre-registered):")

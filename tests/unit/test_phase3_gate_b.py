@@ -117,6 +117,77 @@ def test_gate_b_checker_evaluates_a_synthetic_result() -> None:
     )["passed"]
 
 
+def test_gate_b_checker_measures_the_declared_subject() -> None:
+    """The gate must evaluate the row it names, or refuse.
+
+    Regression. The subject chain was `sft -> prompted -> random_schema` with no `grpo`
+    entry, so a GRPO results file fell through to the grammar sampler: five of six criteria
+    were computed against a policy with no model behind it, printed under a heading naming
+    the adapter, and a verdict was issued either way. A gate that measures the wrong row
+    and still prints PASS/FAIL is the failure CLAUDE.md 11 warns about.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_gate_b", "scripts/check_gate_b.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    gate = yaml.safe_load(GATE.read_text())
+
+    def row(policy: str, best: float, std: float) -> dict[str, object]:
+        return {"policy": policy, "mean_reward": best,
+                "per_patient_best": [best] * 100, "per_patient_first": [best] * 100,
+                "group_stds": [std] * 100}
+
+    # The decoy clears the variance floor; the subject does not. If the checker reads the
+    # wrong row it reports PASS, which is exactly the bug.
+    results = {
+        "k": 8, "gate_b_pass_bar": 0.5, "subject_policy": "grpo",
+        "rows": [row("random_schema", 0.0, 0.30), row("grpo", 0.0, 0.0)],
+        "calibration_margin": 0.2, "mean_expected_ceiling": 1.0,
+        "schema_valid_fraction": 1.0,
+    }
+    verdicts = {v["criterion"]: v["passed"] for v in mod.evaluate(results, gate)}
+    assert not verdicts["within-group reward variance"], (
+        "the checker read a row other than the declared subject"
+    )
+
+    # A declared subject that is absent must raise, not quietly fall back to another row.
+    missing = {**results, "rows": [row("random_schema", 0.0, 0.30)]}
+    with pytest.raises(SystemExit, match="subject_policy"):
+        mod.evaluate(missing, gate)
+
+
+def test_gate_b2_inherits_the_thresholds_it_does_not_amend() -> None:
+    """The amendment carries one threshold; evaluating against it must apply all six."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_gate_b", "scripts/check_gate_b.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    merged = mod.load_gate(Path("dxenv/configs/gate_b2.yaml"))["thresholds"]
+    base = yaml.safe_load(GATE.read_text())["thresholds"]
+    # gate_b2 lists only schema_valid_fraction_min and omits degenerate_group_std from its
+    # `unchanged` block; inheritance by `amends:` is what keeps the criterion evaluable.
+    assert set(merged) == set(base), "resolving gate_b2 must cover every gate_b criterion"
+    assert merged["schema_valid_fraction_min"] == 0.99
+    assert merged["degenerate_group_std"] == base["degenerate_group_std"]
+    results = {
+        "k": 8, "gate_b_pass_bar": 0.5, "subject_policy": "grpo",
+        "rows": [{"policy": "grpo", "mean_reward": 0.0,
+                  "per_patient_best": [1.0] * 100, "per_patient_first": [0.0] * 100,
+                  "group_stds": [0.3] * 100}],
+        "calibration_margin": 0.2, "mean_expected_ceiling": 1.0,
+        "schema_valid_fraction": 0.995,
+    }
+    under_b = {v["criterion"]: v["passed"] for v in mod.evaluate(results, {"thresholds": base})}
+    under_b2 = {v["criterion"]: v["passed"] for v in mod.evaluate(results, {"thresholds": merged})}
+    assert not under_b["schema-valid output"]
+    assert under_b2["schema-valid output"]
+
+
 def test_gate_b_checker_reports_missing_criteria_as_skipped() -> None:
     """A gate that silently evaluates half its criteria and prints a verdict is not a gate.
 
