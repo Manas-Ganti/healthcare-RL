@@ -1,6 +1,11 @@
 __pycache__/
 *.py[cod]
 .venv/
+# The SECOND venv. pyproject.toml deliberately splits the GPU extras into two
+# non-coinstallable environments (vLLM pins transformers ~4.51, TRL needs >=4.56), so a
+# training host has .venv AND .venv-train. Only the first was ignored, which left a
+# multi-gigabyte directory one `git add -A` away from being committed.
+.venv-train/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
