@@ -23,6 +23,7 @@ import json
 import os
 import time
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -185,6 +186,13 @@ def main() -> None:
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.85,
                     help="0.85 suits this standalone sweep, where nothing shares the "
                          "card. VLLMBackend defaults lower for the co-located GRPO run.")
+    ap.add_argument("--max-turns", type=int, default=None,
+                    help="override the episode turn cap for this sweep. The GRPO arm was "
+                         "trained under the curriculum's short stage and graded at the "
+                         "env.yaml default of 20; evaluating at the horizon a policy was "
+                         "trained for is a different measurement and both are worth having. "
+                         "Recorded in the results file, because a sweep at a non-default "
+                         "horizon is not comparable to one at the default.")
     ap.add_argument("--out", type=Path, default=None,
                     help="defaults to prompted_baseline.json, or sft_baseline.json "
                          "with --lora, so the pre-SFT measurement is not overwritten")
@@ -222,10 +230,22 @@ def main() -> None:
 
     records = generate_corpus(args.n, seed=args.seed)
     ctx = RolloutContext()
+    if args.max_turns is not None:
+        if args.max_turns < 1:
+            raise SystemExit("--max-turns must be at least 1")
+        ctx = RolloutContext(
+            episode_config=replace(ctx.episode_config, max_turns=args.max_turns)
+        )
+        print(f"episode turn cap overridden: {args.max_turns} "
+              f"(env.yaml default is {load_episode_config().max_turns})")
     assert ctx.reward_config is not None
     meta = RunMeta(
         run_id=f"phase3_{subject_name}-{run_tag}",
-        env_config_hash=load_episode_config().hash(),
+        # The CONTEXT's config, not the file's: --max-turns overrides the horizon, which
+        # changes this hash, and the store refuses an episode whose hash the run did not
+        # declare. That guard is the point -- an undeclared hash means an episode was
+        # generated under a configuration nobody intended.
+        env_config_hash=ctx.episode_config.hash(),
         reward_config_hash=ctx.reward_config.hash(),
         menu_fingerprint=build_menu().fingerprint(),
         taxonomy_hash=load_taxonomy().hash(),
@@ -279,6 +299,7 @@ def main() -> None:
         "model": args.model,
         "lora": str(args.lora) if args.lora else None,
         "label": subject_name,
+        "max_turns": ctx.episode_config.max_turns,
         "blank_record_floor": floor,
         "gate_b_pass_bar": bar,
         # Hoisted from the subject row so the gate checker reads one place. The subject is

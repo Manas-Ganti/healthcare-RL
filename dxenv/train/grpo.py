@@ -100,6 +100,19 @@ class GRPOConfig:
     interaction. `--gres=gpu:a100:2` with `--trainer-device cuda:1`.
     """
 
+    scale_advantage_by_std: bool = False
+    """Divide each group's advantages by its own reward std, as published GRPO does.
+
+    Defaults OFF, against the paper, on this project's own evidence: SFT produced pass@8
+    0.330 vs pass@1 0.080, and 99 steps of standardised GRPO cut pass@8 to 0.105 while
+    halving the within-group spread. Per-group rescaling gives a group whose best rollout
+    beat the mean by 0.05 the same gradient magnitude as one where it beat the mean by
+    0.7, so a heavy-tailed reward gets compressed rather than sharpened. See
+    `monitors.group_advantages`.
+
+    Set True to reproduce the first run.
+    """
+
     max_grad_tokens: int = 6144
     """Longest prompt+completion the gradient step will process.
 
@@ -410,7 +423,10 @@ class GRPOTrainer:
 
             self.degenerate_monitor.update(rewards)
             group_stds.append(float(np.std(rewards)))
-            all_sequences.extend(sequences_from_rollouts(rollouts, group_advantages(rewards)))
+            advantages = group_advantages(
+                rewards, scale_by_std=self.config.scale_advantage_by_std
+            )
+            all_sequences.extend(sequences_from_rollouts(rollouts, advantages))
             all_rollouts.extend(rollouts)
 
         t0 = time.monotonic()

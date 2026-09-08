@@ -71,11 +71,37 @@ class RunningCeilingMonitor:
 
 
 def group_advantages(
-    rewards: npt.NDArray[np.float64], eps: float = 1e-8
+    rewards: npt.NDArray[np.float64], eps: float = 1e-8, scale_by_std: bool = True
 ) -> npt.NDArray[np.float64]:
-    """GRPO advantages: standardised within the group."""
+    """GRPO advantages, centred within the group and optionally scaled by its spread.
+
+    `scale_by_std=False` centres only. That is the Dr. GRPO correction, and the reason to
+    prefer it here is visible in this project's own numbers rather than borrowed from a
+    paper.
+
+    Dividing by the group's own standard deviation makes every group contribute the same
+    gradient magnitude regardless of how much was actually at stake in it. A group where
+    the best rollout beat the mean by 0.7 and a group where it beat the mean by 0.05 both
+    come out with a top advantage near +1. The information that one of those groups
+    contained a genuinely good episode and the other contained noise is discarded, and
+    what survives is the RANKING within each group.
+
+    The observed consequence: SFT produced a policy with pass@8 0.330 against pass@1
+    0.080 -- a large spread, which is exactly the precondition GRPO exists to exploit --
+    and 99 steps later pass@8 had fallen to 0.105 and the within-group std from 0.709 to
+    0.371. The policy was compressed toward its own mean instead of sharpened onto its
+    good samples, which is what per-group rescaling of a heavy-tailed reward will do.
+
+    Kept as an option rather than a replacement: the standardised form is what the
+    published GRPO describes, `test_kl_matches_reference_implementation` and the stored
+    curve were produced under it, and a run that changes two things at once has explained
+    neither.
+    """
     r = np.asarray(rewards, dtype=np.float64)
-    return np.asarray((r - r.mean()) / (r.std() + eps), dtype=np.float64)
+    centred = r - r.mean()
+    if not scale_by_std:
+        return np.asarray(centred, dtype=np.float64)
+    return np.asarray(centred / (r.std() + eps), dtype=np.float64)
 
 
 def assert_group_has_variance(rewards: npt.NDArray[np.float64], floor: float = 1e-6) -> None:

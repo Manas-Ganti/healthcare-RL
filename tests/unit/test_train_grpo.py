@@ -502,3 +502,34 @@ def test_token_weighted_accumulation_matches_a_single_pass() -> None:
         for i in range(0, len(per_seq_loss), micro)
     )
     assert abs(naive - one_pass) > 0.1, "the wrong scaling should be visibly different"
+
+
+def test_advantages_without_std_scaling_preserve_relative_magnitude() -> None:
+    """The Dr. GRPO correction, and why this project turned it on.
+
+    Standardising within the group makes a near-tie and a decisive win produce the same
+    top advantage. That is the mechanism by which a heavy-tailed reward gets compressed
+    instead of sharpened -- observed here as pass@8 falling 0.330 -> 0.105 over 99 steps
+    while the within-group std halved.
+    """
+    decisive = np.array([0.0, 0.0, 0.0, 0.9])
+    near_tie = np.array([0.0, 0.0, 0.0, 0.06])
+
+    std_scaled = (group_advantages(decisive), group_advantages(near_tie))
+    # Both come out at exactly sqrt(3); they agree to the precision the eps=1e-8 floor in
+    # the denominator permits, which is the point -- a 15x difference in what was actually
+    # at stake survives as nothing.
+    assert std_scaled[0].max() == pytest.approx(std_scaled[1].max(), rel=1e-5), (
+        "standardising erases the difference between a decisive win and a near-tie"
+    )
+
+    centred = (group_advantages(decisive, scale_by_std=False),
+               group_advantages(near_tie, scale_by_std=False))
+    assert centred[0].max() > 10 * centred[1].max()
+    for adv in (*std_scaled, *centred):
+        assert adv.sum() == pytest.approx(0.0, abs=1e-9), "advantages must stay centred"
+
+
+def test_grpo_config_defaults_to_unscaled_advantages() -> None:
+    """The default is a deliberate departure from published GRPO; pin it."""
+    assert GRPOConfig().scale_advantage_by_std is False

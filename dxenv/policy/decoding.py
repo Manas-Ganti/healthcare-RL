@@ -27,6 +27,7 @@ wrong (see below).
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
@@ -66,6 +67,45 @@ Advisory, not enforced. Grammar backends generally do not implement JSON Schema'
 token budget below and is repeated as a prompt instruction, which is what actually
 shortens the output.
 """
+
+
+PROBABILITY_PATTERN: Final = r"^(0|1|0\.[0-9]{1,9})$"
+
+PROBABILITY_SCHEMA: Final = {"type": "string", "pattern": PROBABILITY_PATTERN}
+"""A probability, as a PATTERN-BOUND STRING rather than a number.
+
+`{"type": "number", "minimum": 0, "maximum": 1}` is the obvious spelling and it does not
+bind. Grammar backends compile STRUCTURE, not value ranges -- the same gap that makes
+`maxLength` advisory on strings -- so `minimum`/`maximum` are dropped and the grammar
+admits any JSON number at all. Measured against the live grammar, three shapes get through
+and then fail in the parser:
+
+    {"probability": -0.5}      jsonschema rejects it; the grammar does not
+    {"probability": 1e999}     -> inf, and I11 forbids a non-finite reward input
+    {"probability": 0}         VALID json-schema, and still unparseable when every
+                               entry is zero
+
+Each one costs a whole episode: the parser raises, the rollout records a decode failure,
+and the episode terminates with no diagnosis. At a 1.5% per-generation rate over a 15-turn
+horizon that compounds to 23% of episodes lost -- which is what it did.
+
+`pattern` IS compiled, so as a string the bound becomes structural: the decoder cannot emit
+a negative, an exponent, or a value above 1, because no such token sequence is in the
+grammar. This is the same fix, for the same reason, as the `pattern` on `reasoning`.
+"""
+
+
+def format_probability(p: float) -> str:
+    """Render a probability in the wire format the grammar admits.
+
+    Nine decimal places, matching `sft.soft_label_wire`: at 16 named labels, 6 dp
+    accumulates ~8e-6 of rounding error, which is larger than the unnamed tail on a
+    confident posterior.
+    """
+    if not np.isfinite(p) or p < 0.0 or p > 1.0:
+        raise DecodingError(f"probability {p!r} is outside [0, 1] or not finite")
+    text = f"{p:.9f}"
+    return "1" if text == "1.000000000" else text
 
 
 def max_completion_tokens(max_labels: int = DEFAULT_MAX_LABELS) -> int:
@@ -168,7 +208,7 @@ def action_json_schema(
                             "type": "object",
                             "properties": {
                                 "condition": {"enum": list(tax.slugs)},
-                                "probability": {"type": "number", "minimum": 0, "maximum": 1},
+                                "probability": PROBABILITY_SCHEMA,
                             },
                             "required": ["condition", "probability"],
                             "additionalProperties": False,
@@ -220,7 +260,16 @@ def complete_distribution(
     named: dict[str, float] = {}
     for item in pairs:
         slug = str(item["condition"])
-        p = float(item["probability"])
+        raw = item["probability"]
+        # Accept the number form too. Older stored trajectories and SFT sets carry floats,
+        # and rescoring them offline must keep working -- the grammar is what stops a MODEL
+        # emitting one, and that is where the constraint belongs.
+        if isinstance(raw, str) and not re.match(PROBABILITY_PATTERN, raw):
+            raise DecodingError(
+                f"probability for {slug!r} is {raw!r}, which the grammar should have made "
+                f"unreachable; expected {PROBABILITY_PATTERN}"
+            )
+        p = float(raw)
         if not np.isfinite(p) or p < 0.0:
             raise DecodingError(f"probability for {slug!r} is {p!r}; must be finite and >= 0")
         named[slug] = named.get(slug, 0.0) + p
@@ -231,10 +280,20 @@ def complete_distribution(
         raise DecodingError("diagnosis names no conditions")
 
     total = sum(named.values())
-    if total <= 0.0:
-        raise DecodingError("diagnosis puts zero mass everywhere; it is not a distribution")
-
     unnamed = [s for s in tax.slugs if s not in named]
+    if total <= 0.0:
+        # "these labels, all at zero" is not malformed -- it is "none of these", and its
+        # max-entropy completion is uniform over everything else. Raising here rejected a
+        # coherent report and cost the whole episode; the only genuinely degenerate case is
+        # zero mass with nowhere to put the residual.
+        if not unnamed:
+            raise DecodingError(
+                "diagnosis puts zero mass on every label in the taxonomy; there is no "
+                "residual to place and it is not a distribution"
+            )
+        share = 1.0 / len(unnamed)
+        return {**dict.fromkeys(named, 0.0), **dict.fromkeys(unnamed, share)}
+
     if total > 1.0 or not unnamed:
         return {k: v / total for k, v in named.items()}
 
@@ -347,7 +406,8 @@ def sample_wire_action(
         slugs = rng.choice(np.array(tax.slugs), size=n, replace=False)
         w = rng.dirichlet(np.ones(n))
         base["diagnosis"] = [
-            {"condition": str(s), "probability": float(p)} for s, p in zip(slugs, w, strict=True)
+            {"condition": str(s), "probability": format_probability(float(p))}
+            for s, p in zip(slugs, w, strict=True)
         ]
     return base
 

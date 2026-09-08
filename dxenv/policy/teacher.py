@@ -81,7 +81,7 @@ from dxenv.env.episode import DiagnosticEpisode, EpisodeConfig, load_episode_con
 from dxenv.env.obs_model import ObservationModel, ResultValue, build_observation_model
 from dxenv.env.schemas import Action, Diagnose, Observation, OrderTest
 from dxenv.policy.baselines import evidence_from_observation
-from dxenv.policy.decoding import DEFAULT_MAX_LABELS
+from dxenv.policy.decoding import DEFAULT_MAX_LABELS, format_probability
 from dxenv.reward.verify import actual_bucket, headline_analyte
 
 NGRAM_N: Final = 4
@@ -226,7 +226,13 @@ class TeacherTurn:
             return {
                 "kind": "diagnose", "reasoning": self.reasoning,
                 "diagnosis": [
-                    {"condition": k, "probability": round(float(v), 6)} for k, v in top
+                    # Same formatter the grammar admits, so a teacher trace is
+                    # byte-identical to what a constrained decoder can emit. Emitting a
+                    # float here would put a shape in the SFT set that the model is then
+                    # forbidden to produce at inference -- the train/inference mismatch
+                    # that wrecked the first SFT run, in a second place.
+                    {"condition": k, "probability": format_probability(float(v))}
+                    for k, v in top
                 ],
             }
         return {"kind": a.kind, "reasoning": self.reasoning}

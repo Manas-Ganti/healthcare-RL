@@ -108,12 +108,56 @@ def test_duplicate_conditions_are_summed(taxonomy) -> None:
 
 
 def test_degenerate_reports_raise(taxonomy) -> None:
-    with pytest.raises(DecodingError, match="zero mass"):
-        complete_distribution([{"condition": taxonomy.slugs[0], "probability": 0.0}], taxonomy)
     with pytest.raises(DecodingError, match="names no conditions"):
         complete_distribution([], taxonomy)
     with pytest.raises(DecodingError, match="outside the frozen taxonomy"):
         complete_distribution([{"condition": "nope", "probability": 1.0}], taxonomy)
+
+
+def test_all_zero_report_is_none_of_these_not_malformed(taxonomy) -> None:
+    """An all-zero report is a coherent statement and must not cost the episode.
+
+    This REVERSES an earlier contract, deliberately. `complete_distribution` used to raise
+    "diagnosis puts zero mass everywhere", but naming labels at zero says "none of these",
+    whose max-entropy completion is uniform over everything else -- which is exactly what
+    the function already does with any other residual. Raising rejected a well-formed
+    report, and because the schema permits it (jsonschema validates `probability: 0`) the
+    grammar could not prevent the model emitting one. Every occurrence terminated an
+    episode with `decode_failure`.
+
+    The genuinely degenerate case -- zero mass with no residual to place -- still raises.
+    """
+    out = complete_distribution(
+        [{"condition": taxonomy.slugs[0], "probability": "0"}], taxonomy
+    )
+    assert out[taxonomy.slugs[0]] == 0.0
+    assert sum(out.values()) == pytest.approx(1.0)
+    assert len(set(out.values())) == 2  # zero for the named, one shared value elsewhere
+
+
+def test_grammar_admits_nothing_the_parser_rejects(menu, taxonomy) -> None:
+    """The property that matters: grammar-legal implies parseable.
+
+    A gap between the two is not a formatting nuisance -- it costs a whole episode each
+    time, and at a 1.5% per-generation rate over a 15-turn horizon it compounded to 23% of
+    episodes terminating on `decode_failure`. These four shapes all got through the live
+    grammar and then raised in the parser, because backends compile STRUCTURE and drop
+    numeric `minimum`/`maximum` exactly as they drop `maxLength`.
+    """
+    schema = action_json_schema(menu, taxonomy)
+    slug = taxonomy.slugs[0]
+
+    def report(prob: object) -> dict[str, object]:
+        return {"kind": "diagnose", "reasoning": "x",
+                "diagnosis": [{"condition": slug, "probability": prob}]}
+
+    for prob in ("-0.5", "12.5", "1e999", "0.5000000000000"):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(report(prob), schema)
+
+    for prob in ("0", "1", "0.250000000"):
+        jsonschema.validate(report(prob), schema)
+        parse_action(json.dumps(report(prob)), menu, taxonomy)
 
 
 def test_non_json_output_raises_rather_than_defaulting(menu, taxonomy) -> None:

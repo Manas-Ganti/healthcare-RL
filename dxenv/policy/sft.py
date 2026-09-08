@@ -56,7 +56,12 @@ from dxenv.env.bayes import entropy, posterior
 from dxenv.env.obs_model import ObservationModel, build_observation_model
 from dxenv.env.schemas import Diagnose, Observation, OrderTest
 from dxenv.policy.baselines import evidence_from_observation
-from dxenv.policy.decoding import DEFAULT_MAX_LABELS, complete_distribution, render_wire
+from dxenv.policy.decoding import (
+    DEFAULT_MAX_LABELS,
+    complete_distribution,
+    format_probability,
+    render_wire,
+)
 from dxenv.policy.prompt import chat_messages
 from dxenv.policy.teacher import TeacherTrace, TeacherTurn
 
@@ -131,10 +136,11 @@ def soft_label_wire(
         "kind": "diagnose",
         "reasoning": reasoning,
         "diagnosis": [
-            # 9 dp, not 6: at 16 named labels, 6 dp accumulates ~8e-6 of rounding error,
-            # which is larger than the unnamed tail on a confident posterior and makes the
-            # target measurably not-the-posterior for no benefit.
-            {"condition": tax.slugs[int(i)], "probability": round(float(belief[int(i)]), 9)}
+            # Rendered by the same formatter the grammar admits, so an SFT target is
+            # byte-identical to what a constrained decoder can emit. 9 dp: see
+            # `decoding.format_probability`.
+            {"condition": tax.slugs[int(i)],
+             "probability": format_probability(float(belief[int(i)]))}
             for i in order
         ],
     }
@@ -329,12 +335,30 @@ class SFTDataset:
 
 @dataclass(frozen=True, slots=True)
 class SFTConfig:
-    """Deliberately undertrained. Every default here leaves entropy on the table."""
+    """Undertrained on purpose, but the first pass was too timid and it is measurable.
+
+    CLAUDE.md 8.4 asks for a competent prior, not a finished policy, because a model
+    sharpened onto its SFT set produces identical rollouts and identical rollouts give
+    GRPO nothing to work with. That reasoning is right and these defaults still respect
+    it -- the ceiling of 2 epochs below is unchanged and still raises.
+
+    What the first run showed is that 1 epoch at 1e-5 undershot the other way. The
+    resulting policy reached pass@8 0.330 but pass@1 only 0.080: it could produce a good
+    episode roughly a third of the time and a *typical* one almost never, and it ordered
+    0.79 tests per episode, having imitated a teacher that stops early rather than
+    learning when stopping is right. Meanwhile the diversity worry did not materialise --
+    within-group std came out at 0.709, an order of magnitude above the 0.05 floor Gate B
+    asks for, so there was ample room to trade some of it for a stronger prior.
+
+    So: 2 epochs at 2e-5. Still inside the pre-registered ceiling, and Gate B measures
+    whether the trade was a good one -- `mean_group_reward_std_min` is exactly the
+    criterion that fails if this went too far.
+    """
 
     model: str = "Qwen/Qwen2.5-7B-Instruct"
     output_dir: Path = Path("runs/sft")
-    epochs: float = 1.0
-    learning_rate: float = 1e-5
+    epochs: float = 2.0
+    learning_rate: float = 2e-5
     lora_rank: int = 32
     lora_alpha: int = 64
     lora_dropout: float = 0.05
