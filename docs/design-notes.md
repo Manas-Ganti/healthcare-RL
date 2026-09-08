@@ -401,6 +401,35 @@ invented, so the terminal score rewards learning a synthetic mapping that 99 ste
 that from a reward-shape problem is the next experiment, not a conclusion this run
 supports.
 
+### The turn budget differs between training and evaluation
+
+Recorded before the Gate B numbers landed, because it changes how they read.
+
+GRPO trained entirely inside curriculum stage `single_condition_short`, which sets
+`max_turns = 8`. The stage never advanced -- its criterion is +0.70 and the run plateaued
+near -0.36 -- so all 99 steps ran under an 8-turn budget. Gate B evaluates under the
+standard environment, `max_turns = 20`, and the eval log shows episodes reaching turns 16,
+17 and 18.
+
+The policy therefore keeps ordering tests past the point it was ever trained to stop, and
+under I5 every one of those only subtracts. Training reward was -0.390; the Gate B arm
+reads -0.620 on the same adapter.
+
+**Not corrected**, and the reason is comparability: base and SFT were both measured at 20
+turns, so changing the horizon for the GRPO arm alone would make the three numbers
+incommensurable and flatter the one arm that got the change. The mismatch is reported as a
+limitation instead.
+
+It is a hypothesis rather than a measured effect. The two numbers differ in more than the
+turn budget -- different patients, and the training figure is a running mean over a policy
+that was still changing. The clean experiment is the same adapter evaluated at
+`max_turns = 8` against the same patients: one variable, ~10 GPU-hours, and the script does
+not currently expose the flag.
+
+If it holds it is a result about the environment rather than a defect: a policy that cannot
+recognise when evidence has stopped paying is actively punished for being given more
+budget, which is the cost-accuracy mechanism seen from the unflattering direction.
+
 ---
 
 ## Persistence, and why it came first

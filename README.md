@@ -165,16 +165,23 @@ so `HF_HOME` and the rollout stores point at scratch. See [`slurm/README.md`](sl
 | **0 — feasibility** | Gate A passes on both substantive criteria |
 | **1 — environment** | Complete |
 | **2 — reward engine** | Complete |
-| **3 — cold start** | Complete. Gate B pending a GPU run |
-| **4 — GRPO** | Complete; runs end to end. No GPU run yet |
+| **3 — cold start** | Complete. Gate B measured on base and SFT |
+| **4 — GRPO** | Complete. 99 steps trained on Qwen2.5-7B + LoRA |
 | **5 — evaluation** | Complete: audit suite, Pareto sweep, calibration |
 
-294 fast + 5 slow tests. `ruff` and `mypy --strict` clean. CI runs the fast suite, lint and
+326 fast + 5 slow tests. `ruff` and `mypy --strict` clean. CI runs the fast suite, lint and
 types on every commit, and the corpus-wide suite nightly.
 
-**Nothing here has been trained.** The GPU paths are written and lazily imported but have
-never executed; treat them as unproven until they run. Every number in this repo comes from
-the environment and from heuristic policies.
+**What has actually run.** Gate A passes. Gate B was measured three times — the prompted 7B
+(FAIL, and *how* it fails is the finding), the SFT'd policy (PASS under the amended
+gate_b2), and the GRPO adapter. GRPO trained for 99 steps; the curve is committed at
+`runs/grpo/curve.png` and regenerates from `runs/grpo/steps.jsonl`.
+
+**The headline result is about the environment, not the policy.** GRPO took test-ordering
+from 0.79 to 3.5 per episode with no reward term for testing — under I5 tests only ever
+subtract — so the only route was that tests paid for themselves. The policy itself is still
+poor: it sits below the blank-record floor, and the reward curve is a fast correction
+followed by a plateau. See [`docs/design-notes.md`](docs/design-notes.md) for the reading.
 
 ---
 
@@ -203,10 +210,15 @@ offline rescoring free.
 
 ## Known gaps
 
-- **Nothing has been trained.** `VLLMBackend`, `sft.train_lora` and `TorchLoRAUpdater` have
-  never executed.
-- **Gate B is not evaluated.** It is pre-registered and the checker works, but the subject
-  row is a grammar sampler, not a model.
+- **Likelihood parameters are invented**, so the Bayes baselines are parameterised from the
+  same generative model that produced the data. This environment measures whether a policy
+  can learn a synthetic mapping, not whether it can diagnose. It is the caveat underneath
+  every number here.
+- **No arm has cleared the no-information floor.** Base −0.689, SFT −0.664, GRPO −0.620,
+  against a blank-record floor of −0.018.
+- **The curriculum never advanced.** All 99 GRPO steps ran in `single_condition_short`, so
+  the full-horizon and comorbid stages are untested in practice — and the policy was trained
+  at 8 turns while Gate B evaluates at 20.
 - **`data/snomed_map.yaml` is empty**, so real Synthea output cannot be ingested yet.
 - **Comorbidity is unimplemented.** The curriculum declares a `comorbid` stage; the
   generator emits one condition per patient.
@@ -220,5 +232,8 @@ offline rescoring free.
 - [`docs/design-notes.md`](docs/design-notes.md) — the engineering record: measurements,
   the calibration of `λ`, the two places the spec did not survive contact, and the audit
   suite results.
+- [`docs/interview-reference.md`](docs/interview-reference.md) — the complete reference:
+  every feature, every design decision with its reasoning, every caveat, and the debugging
+  record.
 - [`CLAUDE.md`](CLAUDE.md) — the full specification: invariants, phase plan, and the
   testing philosophy the repo is built to.
