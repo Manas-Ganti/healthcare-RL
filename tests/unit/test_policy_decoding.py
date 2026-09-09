@@ -7,15 +7,20 @@ the format reward at exactly zero and preserves the entropy GRPO needs.
 from __future__ import annotations
 
 import json
+import re
 
 import jsonschema
 import numpy as np
 import pytest
 from dxenv.env.schemas import Abstain, Diagnose, OrderTest, Prescribe
 from dxenv.policy.decoding import (
+    MAX_REASONING_CHARS,
+    PROBABILITY_PATTERN,
     DecodingError,
     action_json_schema,
     complete_distribution,
+    format_probability,
+    max_completion_tokens,
     parse_action,
     render_wire,
     sample_wire_action,
@@ -479,3 +484,44 @@ def test_control_characters_do_not_kill_a_run(menu, taxonomy) -> None:
     """
     raw = '{"kind": "abstain", "reasoning": "belief is diffuse\nand the budget is spent"}'
     assert parse_action(raw, menu, taxonomy).kind == "abstain"
+
+
+def test_wire_probabilities_are_not_zero_padded() -> None:
+    """Padding to fixed precision cost 20% of all generations; keep it gone.
+
+    `round(v, 9)` dropped trailing zeros for free because Python does that when it
+    serialises a float. Moving `probability` to a string took the property away by
+    accident: 0.25 went out as "0.250000000", digit strings tokenise at about one token
+    each, and every entry of a 16-entry array got three times more expensive on the one
+    turn that already emits the longest output. Truncation went 0.3% -> 20.4%.
+    """
+    assert format_probability(0.25) == "0.25"
+    assert format_probability(0.0) == "0"
+    assert format_probability(1.0) == "1"
+    assert format_probability(0.5) == "0.5"
+    # Real precision is still available where it is actually needed.
+    assert format_probability(1e-9) == "0.000000001"
+    for value in (0.25, 0.0, 1.0, 1e-9, 1 / 3):
+        assert re.match(PROBABILITY_PATTERN, format_probability(value))
+
+
+def test_worst_case_diagnose_fits_the_token_budget() -> None:
+    """A full-width report plus maximal reasoning must fit, with room to spare.
+
+    This is the check that would have caught the padding regression before a 400-minute
+    sweep did. Roughly 3.3 chars/token is conservative for JSON with long identifiers.
+    """
+    from dxenv.policy.sft import soft_label_wire
+
+    rng = np.random.default_rng(0)
+    worst = max(
+        len(render_wire(soft_label_wire(
+            rng.dirichlet(np.ones(149) * concentration), "x" * MAX_REASONING_CHARS)))
+        for concentration in (0.05, 0.3, 1.0)
+        for _ in range(40)
+    )
+    available = max_completion_tokens() * 3.3
+    assert worst < available / 2, (
+        f"worst-case diagnose is {worst} chars against ~{available:.0f} available; "
+        "the budget should cover it twice over"
+    )

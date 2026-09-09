@@ -96,16 +96,30 @@ grammar. This is the same fix, for the same reason, as the `pattern` on `reasoni
 
 
 def format_probability(p: float) -> str:
-    """Render a probability in the wire format the grammar admits.
+    """Render a probability in the wire format the grammar admits, as SHORT as possible.
 
-    Nine decimal places, matching `sft.soft_label_wire`: at 16 named labels, 6 dp
-    accumulates ~8e-6 of rounding error, which is larger than the unnamed tail on a
-    confident posterior.
+    Up to nine decimal places of precision -- at 16 named labels, 6 dp accumulates ~8e-6
+    of rounding error, larger than the unnamed tail on a confident posterior -- but
+    trailing zeros are stripped, and that is not cosmetic.
+
+    The first version of this function padded every value to a fixed nine decimals, so
+    0.25 went out as "0.250000000". Digit strings tokenise at roughly one token each, so
+    that tripled the cost of every entry in a 16-entry array on the one turn that already
+    emits the longest output. Truncation went from 0.3% of generations to 20.4%, and a
+    truncated diagnose is a whole episode lost -- the change intended to REMOVE decode
+    failures multiplied them 68-fold.
+
+    `round(v, 9)` had this property for free, because Python drops trailing zeros when it
+    serialises a float. Moving to a string took the property away without anyone asking
+    for it to go.
     """
     if not np.isfinite(p) or p < 0.0 or p > 1.0:
         raise DecodingError(f"probability {p!r} is outside [0, 1] or not finite")
     text = f"{p:.9f}"
-    return "1" if text == "1.000000000" else text
+    if text == "1.000000000":
+        return "1"
+    text = text.rstrip("0")
+    return "0" if text == "0." else text
 
 
 def max_completion_tokens(max_labels: int = DEFAULT_MAX_LABELS) -> int:
