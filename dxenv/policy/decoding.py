@@ -446,15 +446,27 @@ adapter was fine; it was being decoded into a shape it had never seen.
 def render_wire(obj: Mapping[str, Any]) -> str:
     """Serialise a wire object exactly as the constrained decoder emits one.
 
-    Key order follows the schema, and the separators are Python's defaults -- which is
-    what the model is observed to produce, and what its own pre-training prior favours.
-    Fighting that prior buys a few tokens and costs distribution match.
+    Key order follows the schema, and the separators are COMPACT -- no space after `:` or
+    `,`. That is not a preference, it is forced by the decoder.
+
+    A JSON grammar permits arbitrary whitespace between tokens, and an SFT'd policy at low
+    entropy exploited that by emitting thousands of newlines after a value until it hit
+    the token budget: every such generation truncated and cost a whole episode, taking
+    schema_valid_fraction to 0.796. The fix is `disable_any_whitespace` on the decoder
+    (see `llm.VLLMBackend._structured_output_kwargs`), which forbids OPTIONAL whitespace
+    entirely -- including the spaces `json.dumps` puts in by default.
+
+    So the two must move together. A target rendered with Python's default separators
+    would teach a shape the decoder can no longer emit, which is the train/inference
+    mismatch that produced an adapter rambling in three languages the first time round.
+    This function is the single definition of that shape, and `03_sft.sbatch` refuses to
+    reuse any SFT set whose targets are not byte-identical to what it produces.
     """
     ordered = {k: obj[k] for k in WIRE_KEY_ORDER if k in obj}
     extra = {k: v for k, v in obj.items() if k not in ordered}
     if extra:
         raise DecodingError(f"wire object has keys outside the schema: {sorted(extra)}")
-    return json.dumps(ordered)
+    return json.dumps(ordered, separators=(",", ":"))
 
 
 # --------------------------------------------------------------------------- vLLM ----

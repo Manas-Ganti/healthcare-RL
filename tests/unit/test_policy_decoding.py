@@ -525,3 +525,34 @@ def test_worst_case_diagnose_fits_the_token_budget() -> None:
         f"worst-case diagnose is {worst} chars against ~{available:.0f} available; "
         "the budget should cover it twice over"
     )
+
+
+def test_render_wire_is_compact_and_idempotent() -> None:
+    """The wire shape is byte-exact, and `render_wire` is its single definition.
+
+    Compact separators are forced by `disable_any_whitespace` on the decoder, which exists
+    because a JSON grammar otherwise permits unbounded whitespace between tokens -- an
+    SFT'd policy at 0.40 entropy emitted 18,299 characters of newlines after a single
+    diagnosis entry and truncated, costing the episode.
+
+    Idempotence is what the SFT reuse guard in `slurm/03_sft.sbatch` relies on: a stored
+    target is stale exactly when it differs byte-for-byte from re-rendering it. That test
+    subsumes all three mismatches this repo has shipped -- key order, value format, and
+    separators -- where each previous guard only caught the one before it.
+    """
+    obj = {
+        "kind": "diagnose",
+        "reasoning": "short",
+        "diagnosis": [{"condition": "a", "probability": "0.25"}],
+    }
+    text = render_wire(obj)
+    assert " " not in text.replace('"short"', ""), f"whitespace in the wire form: {text}"
+    assert text == render_wire(json.loads(text)), "render_wire must be idempotent"
+
+
+def test_sampled_actions_round_trip_byte_exactly() -> None:
+    """Every shape the sampler can produce survives render -> parse -> render unchanged."""
+    rng = np.random.default_rng(0)
+    for _ in range(200):
+        text = render_wire(sample_wire_action(rng))
+        assert text == render_wire(json.loads(text))

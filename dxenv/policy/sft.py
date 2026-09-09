@@ -358,7 +358,14 @@ class SFTConfig:
     model: str = "Qwen/Qwen2.5-7B-Instruct"
     output_dir: Path = Path("runs/sft")
     epochs: float = 2.0
-    learning_rate: float = 2e-5
+    # 2e-5 was tried and backed out. It took token entropy from 0.895 to 0.40 and the
+    # resulting policy degenerated into whitespace loops -- 18,299 characters of newlines
+    # after a single diagnosis entry -- which is what an over-trained low-entropy model
+    # does. The grammar now forbids that continuation outright, so the failure cannot
+    # recur in the same form, but the entropy it signalled is still not something to spend
+    # for nothing: the training curve was flat from epoch 0.5 and the second epoch bought
+    # 0.44 -> 0.41 of loss. The epoch change is the half that paid; the rate is not.
+    learning_rate: float = 1e-5
     lora_rank: int = 32
     lora_alpha: int = 64
     lora_dropout: float = 0.05

@@ -280,7 +280,27 @@ class VLLMBackend:
             ("guided_decoding", "GuidedDecodingParams"),
         ):
             if kwarg in accepted and hasattr(sp, cls_name):
-                return {kwarg: getattr(sp, cls_name)(json=dict(self._schema))}
+                cls = getattr(sp, cls_name)
+                params: dict[str, Any] = {"json": dict(self._schema)}
+                # A JSON grammar permits arbitrary whitespace BETWEEN tokens, so a model
+                # that finishes a value and then emits ten thousand newlines before the
+                # next key is doing something the grammar fully allows. That is not
+                # hypothetical here: an SFT'd policy at 0.40 entropy did exactly that,
+                # burning an 18,299-character budget on whitespace after a single
+                # diagnosis entry, and every such generation truncated and cost a whole
+                # episode. It took schema_valid_fraction to 0.796.
+                #
+                # Whitespace carries no information the reward can see and the parser
+                # ignores it entirely, so there is nothing to lose by forbidding it. This
+                # is a constraint on the grammar, NOT a repair path: no output is
+                # rewritten or retried, the degenerate continuation simply stops being
+                # emittable.
+                #
+                # Detected on the class rather than assumed, for the same reason the
+                # keyword itself is: this surface has already been renamed once.
+                if "disable_any_whitespace" in inspect.signature(cls).parameters:
+                    params["disable_any_whitespace"] = True
+                return {kwarg: cls(**params)}
         raise BackendError(
             "this vLLM exposes neither `structured_outputs` nor `guided_decoding` on "
             f"SamplingParams (it accepts: {sorted(accepted)}). Constrained decoding is "
