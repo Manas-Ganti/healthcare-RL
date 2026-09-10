@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from dxenv.data.corpus import generate_corpus
 from dxenv.env.episode import load_episode_config
@@ -89,6 +90,12 @@ def main() -> None:
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--max-model-len", type=int, default=8192)
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.60)
+    ap.add_argument("--lora", type=Path, default=None,
+                    help="adapter to smoke-test. Gate B is the real measurement and costs "
+                         "~7 hours; this answers the narrower question of whether the "
+                         "decoder still produces parseable output at all, in minutes. Use "
+                         "it after a change to the grammar or the wire format, before "
+                         "spending a gate on finding out.")
     args = ap.parse_args()
 
     probe_vllm_api()
@@ -101,7 +108,10 @@ def main() -> None:
         model=args.model,
         max_model_len=args.max_model_len,
         gpu_memory_utilization=args.gpu_memory_utilization,
+        lora_path=args.lora,
     )
+    if args.lora:
+        print(f"adapter: {args.lora}")
     ctx = RolloutContext(episode_config=load_episode_config())
     records = generate_corpus(args.n, seed=1234)
 
