@@ -30,6 +30,32 @@ abstain:
   # one that reports the prior -- otherwise abstain becomes the lazy attractor.
   penalty: 0.05
 
+no_commit:
+  # Extra penalty, ON TOP of the abstain price, for an episode that ends WITHOUT the
+  # policy choosing to end it: ran out of turns (`max_turns`) or produced no parseable
+  # action (`decode_failure`). Introduced for GRPO run 2; v1 priced these exactly as a
+  # deliberate abstain.
+  #
+  # Why: GRPO run 1 (runs/grpo/steps.jsonl) had a mean diagnosis term of exactly
+  # -0.050 = abstain.value - abstain.penalty in 41 of its 99 steps. At eval only 22% of
+  # episodes ended in a diagnosis and half ended on max_turns. Not committing paid -0.05,
+  # the policy's average committed report paid ~-0.5, so running out the clock was the
+  # best move available and GRPO found it in ~20 steps. Not committing was a free hedge.
+  #
+  # Why this does NOT teach recklessness near the horizon (the v1 objection, recorded in
+  # engine.py): Brier is strictly proper [I7]. At any turn, reporting your honest belief
+  # scores at least as well in expectation as reporting the prior (~0.0 diagnosis), which
+  # beats abstaining (-0.05). So the best response to a timeout penalty is "commit to an
+  # honest, possibly broad distribution", never "guess confidently". The penalty prices
+  # FAILING TO DECIDE; it does not touch the deliberate abstain option, which keeps its
+  # v1 price and its "near the EV of a calibrated prior guess" contract.
+  #
+  # Size: 0.45 puts a non-committed episode at -0.50 diagnosis. That is clearly below the
+  # prior report (~0.0) and the abstain price (-0.05), and around the policy's run-1 mean
+  # committed score, so a commit no worse than the current policy's average breaks even.
+  # It is under 1/12 of the diagnosis range (+-6.0), far from the confident-wrong floor.
+  penalty: 0.45
+
 costs:
   # Calibrated from measurement, not taste. A myopic-entropy policy on a 40-patient
   # sample gains +0.76 weighted score for the first ~18 cost units, +0.23 for the next

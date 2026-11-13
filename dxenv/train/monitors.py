@@ -226,6 +226,62 @@ class DegenerateGroupMonitor:
         return {"n": float(len(self.flags)), "degenerate_fraction": self.fraction}
 
 
+class CommitCollapse(AssertionError):
+    """The policy has stopped ending episodes with a diagnosis."""
+
+
+@dataclass(slots=True)
+class CommitMonitor:
+    """Watch how episodes END: diagnose, abstain, or neither (timeout / decode failure).
+
+    Added after GRPO run 1, where this was the failure and nothing watched for it. In 41
+    of 99 steps the mean diagnosis term was exactly the abstain price: the policy had
+    learned to stop committing, and the aggregate reward made that look like a fast
+    improvement followed by a plateau. It showed up in a post-hoc decomposition two weeks
+    later. As a rate over a window it would have shown up within ten steps.
+
+    Halts when the diagnose fraction falls below `min_diagnose_fraction`. A run below that
+    is training almost entirely on episodes the diagnosis term cannot distinguish, so
+    there is nothing in it for the gradient to sharpen.
+    """
+
+    window: int = 640
+    min_diagnose_fraction: float = 0.10
+    reasons: deque[str] = field(default_factory=deque)
+
+    def update(self, termination_reason: str) -> None:
+        self.reasons.append(str(termination_reason))
+        while len(self.reasons) > self.window:
+            self.reasons.popleft()
+
+    def fraction(self, *reasons: str) -> float:
+        if not self.reasons:
+            return 0.0
+        return sum(r in reasons for r in self.reasons) / len(self.reasons)
+
+    def report(self) -> dict[str, float]:
+        return {
+            "n": float(len(self.reasons)),
+            "diagnose_fraction": self.fraction("diagnose"),
+            "abstain_fraction": self.fraction("abstain"),
+            "no_commit_fraction": self.fraction("max_turns", "decode_failure"),
+        }
+
+    def assert_healthy(self) -> None:
+        if len(self.reasons) < self.window // 2:
+            return
+        r = self.report()
+        if r["diagnose_fraction"] < self.min_diagnose_fraction:
+            raise CommitCollapse(
+                f"only {r['diagnose_fraction']:.1%} of the last {int(r['n'])} episodes "
+                f"ended in a diagnosis (abstain {r['abstain_fraction']:.1%}, timeout or "
+                f"decode failure {r['no_commit_fraction']:.1%}). The policy is hedging out "
+                "of the diagnosis term. Check the abstain and no_commit prices in "
+                "configs/reward.yaml against the policy's mean committed score before "
+                "touching the optimiser."
+            )
+
+
 def kl_k3(logp_policy: npt.NDArray[np.float64], logp_ref: npt.NDArray[np.float64]) -> float:
     """Schulman's k3 estimator of KL(policy || reference), per token, averaged.
 

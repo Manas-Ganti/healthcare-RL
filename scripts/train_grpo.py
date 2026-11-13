@@ -52,6 +52,13 @@ def main() -> None:
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.40,
                     help="vLLM's share. The trainer needs the rest, and unlike the "
                          "engine it cannot be shrunk by configuration.")
+    ap.add_argument("--dev-patients", type=int, default=64,
+                    help="train-split patients held out of sampling and used to pick the "
+                         "best checkpoint; 0 disables the dev eval")
+    ap.add_argument("--dev-every", type=int, default=10)
+    ap.add_argument("--scale-advantage-by-std", action="store_true",
+                    help="published GRPO normalisation; run 1 used it. Off by default "
+                         "(Dr. GRPO), see GRPOConfig.scale_advantage_by_std")
     ap.add_argument("--dry-run", action="store_true",
                     help="full loop, real rewards and monitors, no gradient step")
     args = ap.parse_args()
@@ -68,6 +75,8 @@ def main() -> None:
         temperature=args.temperature, learning_rate=args.lr, kl_coef=args.kl_coef,
         seed=args.seed, root=args.root,
         trainer_device=args.trainer_device,
+        dev_patients=args.dev_patients, dev_every=args.dev_every,
+        scale_advantage_by_std=args.scale_advantage_by_std,
     )
 
     if args.dry_run:

@@ -70,8 +70,14 @@ REF_ARG=""
 # the engine reserves its share up front and the trainer takes what is left, so every fix
 # on one side just moved the pressure to the other. A node here has gpu:a100:8, so the
 # second card costs nothing in queue terms and removes the interaction entirely.
+# Run 2 onward: a new run id per reward config. trainer_state.json refuses to resume
+# across a reward-config change (load_state), so reusing "grpo" would crash at startup --
+# correctly, since run 1's monitor windows were measured under the old weights.
+RUN_ID="${DXENV_RUN_ID:-grpo2}"
 python scripts/train_grpo.py \
-    --run-id grpo \
+    --run-id "$RUN_ID" \
+    --lr "${DXENV_LR:-3e-6}" \
+    --dev-patients "${DXENV_DEV_PATIENTS:-64}" --dev-every "${DXENV_DEV_EVERY:-10}" \
     --trainer-device "${DXENV_TRAINER_DEVICE:-cuda:1}" \
     --gpu-memory-utilization "${DXENV_VLLM_UTIL:-0.85}" \
     --model "$DXENV_MODEL" \
@@ -86,7 +92,7 @@ python scripts/train_grpo.py \
 # never reached it. --signal=B:TERM@300 delivers SIGTERM five minutes early, so this trap
 # has time to let the loop checkpoint and to resubmit.
 _requeue_if_unfinished() {
-    local state="$DXENV_RUNS/grpo/trainer_state.json"
+    local state="$DXENV_RUNS/$RUN_ID/trainer_state.json"
     local target="${DXENV_GRPO_STEPS:-400}"
     [[ -f "$state" ]] || return 0
     local done_steps
@@ -99,7 +105,7 @@ _requeue_if_unfinished() {
 trap '_requeue_if_unfinished' TERM
 
 # Requeue automatically while there are steps left. Comment out to drive it by hand.
-STATE="$DXENV_RUNS/grpo/trainer_state.json"
+STATE="$DXENV_RUNS/$RUN_ID/trainer_state.json"
 if [[ -f "$STATE" ]]; then
   TARGET="${DXENV_GRPO_STEPS:-400}"
   DONE=$(python -c "import json;print(json.load(open('$STATE'))['step_index'])")

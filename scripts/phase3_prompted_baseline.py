@@ -88,6 +88,8 @@ def evaluate(
     store: TrajectoryStore, seed: int,
 ) -> dict[str, Any]:
     per_patient_best, all_rewards, group_stds, tests, first_sample = [], [], [], [], []
+    per_patient_mean: list[float] = []
+    ending_counts: dict[str, int] = {}
     ceilings, everything, schema_valid = [], [], []
     failures: list[dict[str, Any]] = []
     # Progress, because this runs for hours and prints nothing otherwise: vLLM's own
@@ -109,6 +111,8 @@ def evaluate(
             )
         rewards = [r.reward for r in rollouts]
         for r in rollouts:
+            reason = r.breakdown.termination_reason
+            ending_counts[reason] = ending_counts.get(reason, 0) + 1
             store.append(r.trajectory, r.ground_truth_dict(), policy=name,
                          **{kk: vv for kk, vv in r.tags().items() if kk != "generations"})
             # Under guided decoding every generation parses by construction; this counts
@@ -137,6 +141,7 @@ def evaluate(
                     })
         per_patient_best.append(max(rewards))
         first_sample.append(rewards[0])
+        per_patient_mean.append(float(np.mean(rewards)))
         all_rewards.extend(rewards)
         group_stds.append(float(np.std(rewards)))
         tests.extend(r.n_tests for r in rollouts)
@@ -154,6 +159,12 @@ def evaluate(
         "schema_valid_fraction": float(np.mean(schema_valid)) if schema_valid else 1.0,
         "per_patient_best": per_patient_best,
         "per_patient_first": first_sample,
+        # Paired-by-patient comparisons (check_gate_grpo2.py) need the per-patient MEAN:
+        # best-of-k and first-sample are both noisier and the first is biased upward.
+        "per_patient_mean": per_patient_mean,
+        "ending_fractions": {
+            k: v / max(sum(ending_counts.values()), 1) for k, v in sorted(ending_counts.items())
+        },
         "group_stds": group_stds,
         "schema_failures": failures,
     }

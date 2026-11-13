@@ -43,7 +43,7 @@ def trainer(tmp_path, fixture_corpus, episode_config, reward_config, taxonomy, c
 
     splits = make_splits(fixture_corpus, seed=7)
     cfg = GRPOConfig(run_id="t", k=4, patients_per_step=3, monitor_every=100,
-                     stage_window=3, root=tmp_path, seed=1)
+                     stage_window=3, root=tmp_path, seed=1, dev_patients=4, dev_every=2)
     ctx = RolloutContext(
         episode_config=episode_config, reward_config=reward_config,
         taxonomy=taxonomy, catalog=catalog, model=obs_model,
@@ -271,12 +271,16 @@ def test_loop_runs_and_persists_every_rollout(trainer, tmp_path) -> None:
     reports = trainer.run(steps=3)
     assert len(reports) == 3
     run_dir = tmp_path / "t"
-    lines = (run_dir / "episodes.jsonl").read_text().strip().splitlines()
-    expected = 3 * trainer.config.patients_per_step * trainer.config.k
-    assert len(lines) == expected
+    lines = [json.loads(x) for x in
+             (run_dir / "episodes.jsonl").read_text().strip().splitlines()]
+    train = [x for x in lines if not str(x["tags"]["stage"]).startswith("dev_eval")]
+    dev = [x for x in lines if str(x["tags"]["stage"]).startswith("dev_eval")]
+    assert len(train) == 3 * trainer.config.patients_per_step * trainer.config.k
+    # Dev evals at step 0 (reference) and step 2 (dev_every=2): persisted too.
+    assert len(dev) == 2 * trainer.config.dev_patients
     assert json.loads((run_dir / "meta.json").read_text())["phase"] == "grpo"
     steps = (run_dir / "steps.jsonl").read_text().strip().splitlines()
-    assert len(steps) == 3
+    assert len(steps) == 3 + 1  # three steps plus the step -1 reference dev eval
 
 
 def test_stored_lines_declare_their_env_config(trainer, tmp_path) -> None:
@@ -533,3 +537,70 @@ def test_advantages_without_std_scaling_preserve_relative_magnitude() -> None:
 def test_grpo_config_defaults_to_unscaled_advantages() -> None:
     """The default is a deliberate departure from published GRPO; pin it."""
     assert GRPOConfig().scale_advantage_by_std is False
+
+
+# ---------------------------------------------------------------- commit + dev eval --
+
+
+def test_commit_monitor_fires_on_synthetic_collapse() -> None:
+    """Test the detector: run 1's failure, replayed, must halt."""
+    from dxenv.train.monitors import CommitCollapse, CommitMonitor
+
+    m = CommitMonitor(window=100, min_diagnose_fraction=0.10)
+    for i in range(100):
+        m.update("diagnose" if i % 20 == 0 else ("max_turns" if i % 2 else "abstain"))
+    with pytest.raises(CommitCollapse, match="ended in a diagnosis"):
+        m.assert_healthy()
+
+
+def test_commit_monitor_quiet_when_committing_and_before_half_window() -> None:
+    from dxenv.train.monitors import CommitMonitor
+
+    m = CommitMonitor(window=100)
+    for _ in range(40):
+        m.update("max_turns")
+    m.assert_healthy()  # under half a window: no verdict yet
+    for _ in range(100):
+        m.update("diagnose")
+    m.assert_healthy()
+    assert m.report()["diagnose_fraction"] == 1.0
+
+
+def test_dev_set_disjoint_from_training_pool_and_eval(trainer) -> None:
+    dev = set(trainer.dev_ids)
+    assert len(dev) == trainer.config.dev_patients
+    assert not dev & set(trainer._train_pool)
+    assert not dev & set(trainer.splits.eval)
+    assert dev <= set(trainer.splits.train)
+    for _ in range(20):
+        ids = {r.patient_id for r in trainer.sample_patients()}
+        assert not ids & dev, "a dev patient was drawn for training"
+
+
+def test_dev_eval_is_deterministic_and_saves_best(trainer, tmp_path) -> None:
+    a = trainer.run_dev_eval()
+    b = trainer.run_dev_eval()
+    assert a["dev_mean_reward"] == b["dev_mean_reward"], "dev eval must use fixed draws"
+    best = json.loads((tmp_path / "t" / "best" / "best.json").read_text())
+    assert best["dev_mean_reward"] == a["dev_mean_reward"]
+    assert {"dev_diagnose_fraction", "dev_abstain_fraction",
+            "dev_no_commit_fraction"} <= set(a)
+
+
+def test_step_reports_how_episodes_ended(trainer) -> None:
+    rep = trainer.run_step()
+    fr = [rep.metrics[k] for k in
+          ("diagnose_fraction", "abstain_fraction", "no_commit_fraction")]
+    assert sum(fr) == pytest.approx(1.0)
+
+
+def test_state_roundtrip_keeps_commit_window_and_best(trainer) -> None:
+    trainer.run(steps=2)
+    saved_reasons = list(trainer.commit_monitor.reasons)
+    saved_best = (trainer.best_dev, trainer.best_dev_step)
+    trainer.save_state()
+    trainer.commit_monitor.reasons.clear()
+    trainer.best_dev = trainer.best_dev_step = None
+    assert trainer.load_state()
+    assert list(trainer.commit_monitor.reasons) == saved_reasons
+    assert (trainer.best_dev, trainer.best_dev_step) == saved_best

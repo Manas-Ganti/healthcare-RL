@@ -57,6 +57,9 @@ from dxenv.reward.verify import verify_term
 
 _CONFIG_DIR: Final = Path(__file__).resolve().parents[1] / "configs"
 
+NO_COMMIT_REASONS: Final = frozenset({"max_turns", "decode_failure"})
+"""Endings the policy did not choose. Scored as abstain minus `no_commit.penalty`."""
+
 
 class RewardError(ValueError):
     """Malformed trajectory or config. Never caught inside `dxenv.reward`."""
@@ -81,6 +84,7 @@ class RewardConfig:
     mu: float
     abstain_value: float
     abstain_penalty: float
+    no_commit_penalty: float
     shaping_enabled: bool
     shaping_gamma: float
     shaping_scale: float
@@ -98,7 +102,8 @@ class RewardConfig:
         payload = {
             k: getattr(self, k)
             for k in (
-                "lam", "mu", "abstain_value", "abstain_penalty", "shaping_enabled",
+                "lam", "mu", "abstain_value", "abstain_penalty", "no_commit_penalty",
+                "shaping_enabled",
                 "shaping_gamma", "shaping_scale", "verify_enabled", "verify_fraction",
                 "coherence_scale", "correctness_scale", "contraindication_penalty",
             )
@@ -117,6 +122,9 @@ def load_reward_config(path: Path | None = None) -> RewardConfig:
         mu=float(raw["costs"]["mu"]),
         abstain_value=float(raw["abstain"]["value"]),
         abstain_penalty=float(raw["abstain"]["penalty"]),
+        # Required, no default: a config written before this key existed must fail to
+        # load rather than silently score timeouts at the old price.
+        no_commit_penalty=float(raw["no_commit"]["penalty"]),
         shaping_enabled=bool(raw["shaping"]["enabled"]),
         shaping_gamma=float(raw["shaping"]["gamma"]),
         shaping_scale=float(raw["shaping"]["scale"]),
@@ -146,6 +154,11 @@ def validate_reward_config(cfg: RewardConfig, taxonomy: Taxonomy | None = None) 
         raise RewardError("lambda and mu must be non-negative")
     if cfg.contraindication_penalty < 0.0:
         raise RewardError("contraindication penalty must be non-negative")
+    if cfg.no_commit_penalty < 0.0:
+        raise RewardError(
+            "no_commit.penalty must be non-negative: a negative value would make running "
+            "out of turns BETTER than deliberately abstaining"
+        )
 
     if not 0.0 <= cfg.verify_fraction < 1.0:
         raise RewardError(
@@ -287,12 +300,18 @@ def score_trajectory(
         # Priced near the EV of a calibrated prior guess, minus a small penalty so that
         # abstaining on everything is strictly worse than reporting the prior.
         diagnosis = config.abstain_value - config.abstain_penalty
+    elif reason in NO_COMMIT_REASONS:
+        # The episode ended without the policy ending it. v1 priced this exactly as a
+        # deliberate abstain, and GRPO run 1 learned to run out the clock: a free hedge.
+        # Brier is strictly proper, so the best response to this penalty is an honest
+        # (possibly broad) report, not a reckless one. Rationale in configs/reward.yaml.
+        diagnosis = config.abstain_value - config.abstain_penalty - config.no_commit_penalty
     else:
-        # Ran out of turns or budget without committing. Treated as an abstention that
-        # also failed to decide -- same value, same penalty. Scoring it as a wrong answer
-        # would make running out of time worse than a confident guess, which teaches
-        # recklessness near the horizon.
-        diagnosis = config.abstain_value - config.abstain_penalty
+        raise RewardError(
+            f"unknown termination_reason {reason!r}; expected 'diagnose', 'abstain' or one "
+            f"of {sorted(NO_COMMIT_REASONS)}. Scoring an unrecognised ending at some "
+            "default price is how a new failure mode becomes a quiet reward term."
+        )
 
     turn_pen = turn_penalty_term(n_turns, config.mu)
 

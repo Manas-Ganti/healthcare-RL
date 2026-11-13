@@ -59,6 +59,7 @@ from dxenv.policy.rollout import (
 )
 from dxenv.train.curriculum import Curriculum, Stage, load_curriculum, load_training_ids
 from dxenv.train.monitors import (
+    CommitMonitor,
     CostDistributionMonitor,
     DegenerateGroupMonitor,
     RunningCeilingMonitor,
@@ -147,6 +148,21 @@ class GRPOConfig:
     """Steps of mean reward a stage is judged on before it may advance. One step is
     8 patients; advancing on that would advance on noise."""
 
+    dev_patients: int = 64
+    """Train-split patients held out of GRPO sampling and used only to SCORE the policy.
+
+    Run 1 judged itself on the batch reward of the step it was training on: 64 episodes
+    from 8 fresh patients, with the KL climbing 0 -> 0.08 while that number stayed flat.
+    That signal could not say whether the policy was improving, drifting, or neither. A
+    fixed patient set with fixed seeds (common random numbers) can, and it is what picks
+    the checkpoint worth evaluating.
+
+    Drawn from TRAIN, never eval [I12]. Because the best checkpoint is SELECTED on this
+    set, its dev score is optimistically biased; the reported number must come from a
+    fresh measurement (Gate B sweep), not from here. Zero disables the dev eval."""
+    dev_every: int = 10
+    dev_seed: int = 7919
+
     seed: int = 0
     root: Path = Path("runs")
 
@@ -232,7 +248,10 @@ class StepReport:
             f"group_std={self.mean_group_std:.3f} "
             f"degen={self.degenerate_fraction:.1%} gap={self.ceiling_gap:+.3f} "
             f"seqs={self.n_sequences} "
-            f"[rollout {self.rollout_s / 60:.1f}m grad {self.grad_s / 60:.1f}m "
+            f"dx_end={self.metrics.get('diagnose_fraction', 0.0):.0%} "
+            + (f"DEV={self.metrics['dev_mean_reward']:+.3f} "
+               if "dev_mean_reward" in self.metrics else "")
+            + f"[rollout {self.rollout_s / 60:.1f}m grad {self.grad_s / 60:.1f}m "
             f"sync {self.sync_s / 60:.1f}m]"
         )
 
@@ -308,6 +327,10 @@ class GRPOTrainer:
         self.ceiling_monitor = RunningCeilingMonitor()
         self.cost_monitor = CostDistributionMonitor()
         self.degenerate_monitor = DegenerateGroupMonitor()
+        self.commit_monitor = CommitMonitor()
+        self.dev_ids, self._train_pool = _split_dev(splits, config.dev_patients, config.dev_seed)
+        self.best_dev: float | None = None
+        self.best_dev_step: int | None = None
         self.stage_rewards: list[float] = []
         self.history: list[StepReport] = []
         self.step_index = 0
@@ -332,7 +355,7 @@ class GRPOTrainer:
     # ------------------------------------------------------------------ sampling --
     def sample_patients(self) -> list[PatientRecord]:
         """Draw this step's patients from TRAIN only, through the guarded loader [I12]."""
-        pool = list(self.splits.train)
+        pool = self._train_pool
         idx = self.rng.choice(len(pool), size=min(self.config.patients_per_step, len(pool)),
                               replace=False)
         ids = [pool[int(i)] for i in idx]
@@ -417,6 +440,7 @@ class GRPOTrainer:
                 self.cost_monitor.update(
                     r.n_tests, hit_budget_cap=r.trajectory.get("spent", 0.0) >= budget - 1e-9
                 )
+                self.commit_monitor.update(r.breakdown.termination_reason)
                 if self._store is not None:
                     self._store.append(r.trajectory, r.ground_truth_dict(), step=self.step_index,
                                        stage=self.stage.name, **_slim(r.tags()))
@@ -447,7 +471,10 @@ class GRPOTrainer:
             rollout_s=rollout_s,
             grad_s=grad_s,
             sync_s=0.0,
-            metrics={k: float(v) for k, v in metrics.items()},
+            metrics={
+                **{k: float(v) for k, v in metrics.items()},
+                **_ending_fractions(all_rollouts),
+            },
         )
         self.stage_rewards.append(report.mean_reward)
         self.history.append(report)
@@ -464,13 +491,69 @@ class GRPOTrainer:
             self.updater.sync_rollout_weights()
             self.n_syncs += 1
         report.sync_s = time.monotonic() - t0
+        # After the sync, so the dev eval scores the policy this step just produced.
+        if self.config.dev_patients > 0 and self.step_index % self.config.dev_every == 0:
+            report.metrics.update(self.run_dev_eval())
         self.maybe_advance_stage()
         return report
+
+    def run_dev_eval(self) -> dict[str, float]:
+        """Score the current policy on the fixed dev patients. Never trains on them.
+
+        Seeds and budgets are a function of the patient's index alone, so successive evals
+        see the same draws and the difference between two of them is the policy, not the
+        sample. Saves the adapter to `best/` whenever the dev mean improves.
+        """
+        cfg = self.config
+        stage_cfg = self._stage_episode_config()
+        ctx = RolloutContext(
+            episode_config=stage_cfg,
+            reward_config=self.ctx.reward_config,
+            taxonomy=self.ctx.taxonomy,
+            catalog=self.ctx.catalog,
+            model=self.ctx.model,
+        )
+        guard_training_access(list(self.dev_ids), self.splits)
+        records = load_training_ids(self.dev_ids, lambda got: [self.records[p] for p in got])
+        specs = [
+            (rec, cfg.dev_seed + 1000 * j,
+             sample_budget(stage_cfg, np.random.default_rng(cfg.dev_seed + j)))
+            for j, rec in enumerate(records)
+        ]
+        rollouts = rollout_lockstep(specs, self.policy_factory, ctx)
+        for r in rollouts:
+            assert_below_ceiling(
+                r.reward, r.hard_ceiling, r.patient_id, r.trajectory,
+                tolerance=cfg.ceiling_tolerance,
+            )
+            if self._store is not None:
+                self._store.append(r.trajectory, r.ground_truth_dict(), step=self.step_index,
+                                   stage=f"dev_eval:{self.stage.name}", **_slim(r.tags()))
+        mean = float(np.mean([r.reward for r in rollouts]))
+        improved = self.best_dev is None or mean > self.best_dev
+        if improved:
+            self.best_dev, self.best_dev_step = mean, self.step_index
+            best = cfg.root / cfg.run_id / "best"
+            self.updater.save(best)
+            (best / "best.json").write_text(json.dumps({
+                "step": self.step_index, "stage": self.stage.name, "dev_mean_reward": mean,
+                "n_dev": len(rollouts),
+                "note": "selected on dev; re-measure on fresh patients before reporting",
+            }, indent=2) + "\n")
+        ends = _ending_fractions(rollouts)
+        return {
+            "dev_mean_reward": mean,
+            "dev_mean_diagnosis": float(np.mean([r.breakdown.diagnosis for r in rollouts])),
+            "dev_mean_tests": float(np.mean([r.n_tests for r in rollouts])),
+            "dev_best": float(self.best_dev) if self.best_dev is not None else mean,
+            **{f"dev_{k}": v for k, v in ends.items()},
+        }
 
     def assert_monitors(self) -> None:
         """The every-N-steps checks. Each one halts; none of them warn."""
         self.degenerate_monitor.assert_healthy()
         self.cost_monitor.assert_healthy()
+        self.commit_monitor.assert_healthy()
         if self.ceiling_monitor.breached:
             rep = self.ceiling_monitor.report()
             raise AssertionError(
@@ -528,6 +611,9 @@ class GRPOTrainer:
             "cost_counts": list(self.cost_monitor.counts),
             "cost_capped": [bool(b) for b in self.cost_monitor.budget_capped],
             "degenerate_flags": [bool(b) for b in self.degenerate_monitor.flags],
+            "commit_reasons": list(self.commit_monitor.reasons),
+            "best_dev": self.best_dev,
+            "best_dev_step": self.best_dev_step,
             "config_hashes": sorted(self.meta.declared_env_hashes),
             "reward_config_hash": self.meta.reward_config_hash,
         }
@@ -570,6 +656,11 @@ class GRPOTrainer:
         self.cost_monitor.counts = deque(int(c) for c in state["cost_counts"])
         self.cost_monitor.budget_capped = deque(bool(b) for b in state["cost_capped"])
         self.degenerate_monitor.flags = deque(bool(b) for b in state["degenerate_flags"])
+        self.commit_monitor.reasons = deque(str(x) for x in state["commit_reasons"])
+        self.best_dev = None if state["best_dev"] is None else float(state["best_dev"])
+        self.best_dev_step = (
+            None if state["best_dev_step"] is None else int(state["best_dev_step"])
+        )
         return True
 
     def run(self, steps: int | None = None) -> list[StepReport]:
@@ -579,6 +670,13 @@ class GRPOTrainer:
             self._store = s
             log = (self.config.root / self.config.run_id / "steps.jsonl").open("a")
             try:
+                if self.step_index == 0 and self.config.dev_patients > 0:
+                    # The reference policy's dev score: the number every later eval is
+                    # judged against, measured on the same patients and seeds.
+                    dev0 = self.run_dev_eval()
+                    log.write(json.dumps({"step": -1, "stage": self.stage.name, **dev0},
+                                         sort_keys=True) + "\n")
+                    log.flush()
                 for _ in range(n):
                     report = self.run_step()
                     log.write(json.dumps(report.as_dict(), sort_keys=True) + "\n")
@@ -600,6 +698,36 @@ class GRPOTrainer:
                 log.close()
                 self._store = None
         return self.history
+
+
+def _split_dev(
+    splits: Splits, n: int, seed: int
+) -> tuple[tuple[str, ...], list[str]]:
+    """Carve a fixed dev set out of TRAIN; return (dev ids, remaining training pool).
+
+    Its own generator, so the dev set does not depend on the training seed and two runs
+    with different seeds are scored on the same patients.
+    """
+    train = sorted(splits.train)
+    if n < 0 or n >= len(train):
+        raise TrainingError(f"dev_patients={n} must be in [0, {len(train)})")
+    if n == 0:
+        return (), list(splits.train)
+    idx = np.random.default_rng(seed).choice(len(train), size=n, replace=False)
+    dev = tuple(train[int(i)] for i in sorted(idx))
+    held = set(dev)
+    return dev, [p for p in splits.train if p not in held]
+
+
+def _ending_fractions(rollouts: Sequence[Rollout]) -> dict[str, float]:
+    """How episodes ended. The signal run 1 was missing."""
+    reasons = [r.breakdown.termination_reason for r in rollouts]
+    n = max(len(reasons), 1)
+    return {
+        "diagnose_fraction": sum(x == "diagnose" for x in reasons) / n,
+        "abstain_fraction": sum(x == "abstain" for x in reasons) / n,
+        "no_commit_fraction": sum(x in ("max_turns", "decode_failure") for x in reasons) / n,
+    }
 
 
 def _menu_fingerprint() -> str:
