@@ -1,0 +1,68 @@
+# GATE GRPO2 -- does GRPO run 2 beat the baseline? PRE-REGISTERED.
+#
+# Committed BEFORE run 2 starts. test_gate_grpo2_preregistered enforces that this file's
+# commit precedes the results file. Do NOT edit after results exist; record gate_grpo2b
+# with the reasoning and report both verdicts.
+version: 1
+registered_utc: "2026-11-13"
+
+# What changed from run 1, so a reader can tell what this gate is a verdict ON:
+#   * reward: no_commit.penalty 0.45 (timeout / decode failure priced below abstain)
+#   * advantages centred, NOT divided by group std (Dr. GRPO); lr 1e-6 -> 3e-6 to keep
+#     the per-step update size roughly where run 1's was (|A| ~0.15-0.35, was ~0.8)
+#   * checkpoint chosen on a 64-patient train-split dev set (runs/grpo2/best/)
+#   * grammar fixes 3e4132b / 345be17 and SFT rebuilt against them
+# Several things changed at once. A PASS says "this recipe beats the baseline"; it does
+# not say which change did it. The ablations come after a pass, not before.
+
+subject:
+  adapter: runs/grpo2/best          # selected on dev; measured here on FRESH patients
+  label: grpo2
+
+# The same instrument as Gate B so the rows are comparable with every earlier arm:
+# scripts/phase3_prompted_baseline.py, n=200, k=8, T=1.0, seed 20260903. The 200
+# patients come from a corpus generated with that seed, NOT from the training corpus, so
+# the policy has never trained on them and the dev selection never saw them.
+protocol:
+  script: scripts/phase3_prompted_baseline.py
+  n_patients: 200
+  k: 8
+  temperature: 1.0
+  seed: 20260903
+  # PRIMARY at the standard horizon, where every earlier row was measured. Training ran
+  # at the curriculum stage's horizon; that is reported as a SECONDARY row (--max-turns)
+  # and does not decide the verdict. Picking the horizon that flatters the policy after
+  # seeing both would be exactly the move pre-registration exists to rule out.
+  primary_max_turns: 20
+
+# "The baseline" is a procedure, not a number: rows computed in the SAME results file, on
+# the same patients, under the same reward config. Comparison is PAIRED by patient.
+baselines:
+  primary: prior             # blank-record floor: report the prevalence prior, no tests
+  stretch: vitals_bayes      # exact Bayes on free vitals, no tests
+
+thresholds:
+  # Paired difference of per-patient mean reward (policy minus baseline).
+  min_mean_margin: 0.05
+  # And it must not be noise: the 95% paired-bootstrap lower bound must clear zero.
+  bootstrap_resamples: 10000
+  bootstrap_seed: 0
+  ci_lower_bound_min: 0.0
+
+  # Guards: a pass must come from diagnosing, not from a new hedge.
+  min_diagnose_fraction: 0.50
+  schema_valid_fraction_min: 0.99     # as amended in gate_b2
+  calibration_margin_min: 0.05        # as in gate_b
+
+on_failure:
+  margin_below_threshold: >
+    Read the subject's ending_fractions first. If diagnose_fraction is high but the
+    margin is negative, the policy commits and is wrong: run scripts/shrink_sweep.py on
+    the stored rollouts (free) to split calibration from ranking before spending GPU.
+    If abstain_fraction dominates, abstain has replaced timeout as the hedge; that is a
+    reward-pricing question, to be raised and NOT patched by quietly raising its penalty.
+  diagnose_fraction_low: >
+    The policy beat the floor without committing. Treat that as a pricing leak until
+    proven otherwise; do not report the margin.
+  schema_invalid_output: >
+    See gate_b2. Fix the backend; no repair paths.
