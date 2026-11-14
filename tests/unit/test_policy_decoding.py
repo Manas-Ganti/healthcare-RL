@@ -281,16 +281,22 @@ def test_chat_messages_have_system_and_user_roles(fixture_corpus, catalog, menu)
 # ------------------------------------------------------------- vLLM API compatibility --
 
 
-def _fake_vllm(kwarg: str, cls_name: str):
+def _fake_vllm(kwarg: str, cls_name: str, whitespace_flag: bool = True):
     """A stand-in vLLM exposing one generation of the structured-output API."""
     import inspect
     import types
 
     sp = types.ModuleType("vllm.sampling_params")
 
-    class Params:
-        def __init__(self, json):
-            self.json = json
+    if whitespace_flag:
+        class Params:
+            def __init__(self, json, disable_any_whitespace=False):
+                self.json = json
+                self.disable_any_whitespace = disable_any_whitespace
+    else:
+        class Params:  # type: ignore[no-redef]
+            def __init__(self, json):
+                self.json = json
 
     Params.__name__ = cls_name
     setattr(sp, cls_name, Params)
@@ -335,6 +341,21 @@ def test_structured_output_api_is_detected_not_pinned(monkeypatch, kwarg, cls_na
     got = VLLMBackend(model="x")._structured_output_kwargs()
     assert list(got) == [kwarg]
     assert type(got[kwarg]).__name__ == cls_name
+    assert got[kwarg].disable_any_whitespace is True
+
+
+def test_missing_whitespace_flag_raises_rather_than_degrading(monkeypatch) -> None:
+    """Test the guard: a vLLM without `disable_any_whitespace` must not run silently.
+
+    Skipping it would bring back the unbounded-whitespace truncations (345be17).
+    """
+    from dxenv.policy.llm import BackendError, VLLMBackend
+
+    v, sp = _fake_vllm("structured_outputs", "StructuredOutputsParams", whitespace_flag=False)
+    monkeypatch.setitem(__import__("sys").modules, "vllm", v)
+    monkeypatch.setitem(__import__("sys").modules, "vllm.sampling_params", sp)
+    with pytest.raises(BackendError, match="disable_any_whitespace"):
+        VLLMBackend(model="x")._structured_output_kwargs()
 
 
 def test_unknown_structured_output_api_raises_rather_than_degrading(monkeypatch) -> None:
@@ -556,3 +577,14 @@ def test_sampled_actions_round_trip_byte_exactly() -> None:
     for _ in range(200):
         text = render_wire(sample_wire_action(rng))
         assert text == render_wire(json.loads(text))
+
+
+def test_vllm_backend_normalises_lora_path_to_str() -> None:
+    """vLLM's msgspec encoder rejects pathlib.Path on the first request (gpu_smoke crash)."""
+    from pathlib import Path
+
+    from dxenv.policy.llm import VLLMBackend
+
+    b = VLLMBackend(model="m", lora_path=Path("/tmp/adapter"))  # type: ignore[arg-type]
+    assert isinstance(b.lora_path, str) and b.lora_path == "/tmp/adapter"
+    assert VLLMBackend(model="m").lora_path is None

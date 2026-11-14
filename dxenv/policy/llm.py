@@ -190,6 +190,14 @@ class VLLMBackend:
     installed. Set True once one is confirmed working.
     """
 
+    def __post_init__(self) -> None:
+        # vLLM serialises the LoRARequest to its engine process with msgspec, which
+        # rejects pathlib.Path ("Object of type PosixPath is not serializable") -- and
+        # only on the FIRST REQUEST, after ~3 minutes of engine startup. gpu_smoke passed
+        # a Path and died there. Normalised once here so no caller can repeat it.
+        if self.lora_path is not None:
+            self.lora_path = str(self.lora_path)
+
     def _lazy_engine(self) -> Any:  # pragma: no cover - requires CUDA
         if self._engine is None:
             # Set BEFORE importing vllm, which reads it at import time. Done here rather
@@ -298,8 +306,19 @@ class VLLMBackend:
                 #
                 # Detected on the class rather than assumed, for the same reason the
                 # keyword itself is: this surface has already been renamed once.
-                if "disable_any_whitespace" in inspect.signature(cls).parameters:
-                    params["disable_any_whitespace"] = True
+                #
+                # REQUIRED, not best-effort. It used to be skipped silently when the
+                # class lacked the field, which would quietly bring back the 20%
+                # truncation rate -- and SFT targets are rendered compact (render_wire),
+                # so a decoder that allows whitespace is also a train/inference mismatch.
+                if "disable_any_whitespace" not in inspect.signature(cls).parameters:
+                    raise BackendError(
+                        f"{cls_name} in this vLLM has no `disable_any_whitespace`. Without "
+                        "it the grammar allows unbounded whitespace between tokens, the "
+                        "failure that truncated 20% of generations (345be17). Find the "
+                        "renamed field and map it here; do not run without it."
+                    )
+                params["disable_any_whitespace"] = True
                 return {kwarg: cls(**params)}
         raise BackendError(
             "this vLLM exposes neither `structured_outputs` nor `guided_decoding` on "
@@ -365,7 +384,7 @@ class VLLMBackend:
 
     def reload_lora(self, path: str) -> None:  # pragma: no cover - requires CUDA
         """Point the sampler at freshly trained weights, under a NEW adapter id."""
-        self.lora_path = path
+        self.lora_path = str(path)
         self._lora_version += 1
 
 
