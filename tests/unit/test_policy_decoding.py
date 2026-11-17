@@ -588,3 +588,45 @@ def test_vllm_backend_normalises_lora_path_to_str() -> None:
     b = VLLMBackend(model="m", lora_path=Path("/tmp/adapter"))  # type: ignore[arg-type]
     assert isinstance(b.lora_path, str) and b.lora_path == "/tmp/adapter"
     assert VLLMBackend(model="m").lora_path is None
+
+
+def _fake_llm_module(accepts_cfg: bool):
+    import types
+
+    seen: dict = {}
+    if accepts_cfg:
+        class LLM:
+            def __init__(self, structured_outputs_config=None, **kw):
+                seen["cfg"] = structured_outputs_config
+                seen["kw"] = kw
+    else:
+        class LLM:  # type: ignore[no-redef]
+            def __init__(self, **kw):
+                seen["kw"] = kw
+    v = types.ModuleType("vllm")
+    v.LLM = LLM
+    return v, seen
+
+
+def test_engine_enforces_compact_json_at_engine_level(monkeypatch) -> None:
+    """vLLM 0.28 ignores the per-request whitespace flag; only the engine config counts.
+
+    GRPO run 2's engine started with disable_any_whitespace=False, decoded pretty-printed
+    JSON against compact SFT targets, and 96% of episodes timed out.
+    """
+    from dxenv.policy.llm import VLLMBackend
+
+    v, seen = _fake_llm_module(accepts_cfg=True)
+    monkeypatch.setitem(__import__("sys").modules, "vllm", v)
+    VLLMBackend(model="m")._lazy_engine()
+    assert seen["cfg"] == {"backend": "xgrammar", "disable_any_whitespace": True}
+
+
+def test_engine_without_structured_outputs_config_raises(monkeypatch) -> None:
+    """No silent fallback to vLLM defaults: the defaults are the broken configuration."""
+    from dxenv.policy.llm import BackendError, VLLMBackend
+
+    v, _ = _fake_llm_module(accepts_cfg=False)
+    monkeypatch.setitem(__import__("sys").modules, "vllm", v)
+    with pytest.raises(BackendError, match="structured_outputs_config"):
+        VLLMBackend(model="m")._lazy_engine()

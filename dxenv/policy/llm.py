@@ -229,39 +229,28 @@ class VLLMBackend:
             # `disable_any_whitespace` is rejected unless the backend is named explicitly
             # ("only supported for xgrammar and guidance"), so both go together.
             #
-            # Tried in descending order of preference and falling back on ANY failure,
-            # because every config-shape mismatch here has cost a full queue cycle to
-            # discover, and the last option -- vLLM's own defaults -- is always correct,
-            # merely more token-hungry. This is engine configuration, not policy: the
-            # fallback changes how output is formatted, never which action is chosen, and
-            # it says loudly which rung it landed on.
-            # No `disable_any_whitespace`. It was accepted by the engine and the model
-            # still emitted '{"kind": "order_test", ...' with spaces, so it was not doing
-            # what it claimed; and now that SFT targets are rendered with the model's own
-            # spacing (see decoding.WIRE_KEY_ORDER), forcing compact output would create
-            # the very train/inference mismatch that wrecked the first SFT run.
-            attempts: list[dict[str, Any]] = [{"backend": "xgrammar"}, {}]
-            supports_cfg = (
-                "structured_outputs_config" in inspect.signature(LLM.__init__).parameters
-            )
-            last: Exception | None = None
-            for cfg in attempts:
-                try:
-                    self._engine = LLM(
-                        **kwargs,
-                        **({"structured_outputs_config": cfg} if cfg and supports_cfg else {}),
-                    )
-                    print(f"[dxenv] vLLM structured_outputs_config={cfg or 'defaults'}")
-                    break
-                except Exception as exc:
-                    last = exc
-                    print(f"[dxenv] structured_outputs_config={cfg} rejected "
-                          f"({type(exc).__name__}: {str(exc)[:160]}); trying simpler")
-            if self._engine is None:
+            # ENGINE-level, and required. In vLLM 0.28 (V1 engine) the xgrammar backend
+            # compiles every JSON grammar with the engine's StructuredOutputsConfig; the
+            # per-request `StructuredOutputsParams.disable_any_whitespace` is accepted and
+            # then ignored. GRPO run 2 proved it: the engine log read
+            # `disable_any_whitespace=False`, every generation came out pretty-printed
+            # ('{\n  "kind": "order_test", ...') although SFT targets are compact
+            # (decoding.render_wire), ~2% of turns ran away on whitespace to the token
+            # cap, and 96% of episodes timed out without a diagnosis. That is the
+            # train/inference mismatch render_wire exists to prevent.
+            #
+            # There used to be a fallback ladder ending in vLLM defaults. It is gone: the
+            # defaults are exactly the broken configuration, and a silent degrade here
+            # costs a whole GPU allocation to discover (CLAUDE.md 4, no silent defaults).
+            if "structured_outputs_config" not in inspect.signature(LLM.__init__).parameters:
                 raise BackendError(
-                    f"vLLM engine would not start under any structured-output "
-                    f"configuration. Last error: {last}"
-                ) from last
+                    "this vLLM's LLM() takes no structured_outputs_config, so compact JSON "
+                    "cannot be enforced at the engine and decoding would not match the "
+                    "compact SFT targets. Map the renamed keyword here; do not run without it."
+                )
+            cfg: dict[str, Any] = {"backend": "xgrammar", "disable_any_whitespace": True}
+            self._engine = LLM(**kwargs, structured_outputs_config=cfg)
+            print(f"[dxenv] vLLM structured_outputs_config={cfg}", flush=True)
         return self._engine
 
     def _structured_output_kwargs(self) -> dict[str, Any]:  # pragma: no cover - CUDA only
