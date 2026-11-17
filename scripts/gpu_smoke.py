@@ -136,7 +136,11 @@ def main() -> None:
         assert rollout.reward <= rollout.hard_ceiling + 1e-6, "I9 violated on first contact"
 
     print(f"\n{n_gen} generations, all schema-valid, all episodes below the hard ceiling.")
-    print("first completion:")
+    # Raw first: the pretty-print below is for reading and hides the decoded spacing,
+    # which is exactly what the whitespace check needs to see.
+    print("first completion (raw, as decoded):")
+    print("  " + repr(str(records and rollout.generations[0]['completion']))[:600])
+    print("first completion (re-indented for reading):")
     print("  " + json.dumps(json.loads(str(records and rollout.generations[0]['completion'])),
                             indent=2).replace("\n", "\n  ")[:600])
 
