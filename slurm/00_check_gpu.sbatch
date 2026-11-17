@@ -78,7 +78,9 @@ echo "=== 2. does the constrained-decoding path actually work? ==="
 # A small model on purpose: this is testing OUR plumbing against vLLM's API, not the
 # model's diagnostic ability. Override with DXENV_SMOKE_MODEL if 0.5B is unavailable.
 export DXENV_SMOKE_MODEL="${DXENV_SMOKE_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}"
-python scripts/gpu_smoke.py --model "$DXENV_SMOKE_MODEL" --n 2
+# DXENV_SMOKE_LORA=<adapter> checks the actual policy (e.g. that it decodes compact JSON).
+python scripts/gpu_smoke.py --model "$DXENV_SMOKE_MODEL" --n 2 \
+    ${DXENV_SMOKE_LORA:+--lora "$DXENV_SMOKE_LORA"}
 
 echo
 echo "GPU stack OK. Next: sbatch slurm/02_gate_b.sbatch"
