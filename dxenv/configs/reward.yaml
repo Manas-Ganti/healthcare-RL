@@ -31,6 +31,11 @@ abstain:
   penalty: 0.05
 
 no_commit:
+  # CORRECTION (2026-11-18): the run-1 evidence cited below was a harness bug, not a
+  # reward finding. From step 1 the sampler served raw base + synced LoRA, dropping the
+  # SFT adapter (see dxenv/train/merge.py), so the 41/99 all-abstain steps measured the
+  # prompted model. The penalty stays: a timeout should still cost more than choosing to
+  # abstain. But it is not supported by run-1 data.
   # Extra penalty, ON TOP of the abstain price, for an episode that ends WITHOUT the
   # policy choosing to end it: ran out of turns (`max_turns`) or produced no parseable
   # action (`decode_failure`). Introduced for GRPO run 2; v1 priced these exactly as a

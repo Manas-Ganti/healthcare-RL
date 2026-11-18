@@ -25,6 +25,7 @@ from dxenv.data.corpus import generate_corpus
 from dxenv.data.splits import load_frozen_provenance, rebuild_frozen_splits
 from dxenv.policy.llm import LLMPolicy, RandomBackend, VLLMBackend
 from dxenv.train.grpo import GRPOConfig, GRPOTrainer, NullUpdater, TorchLoRAUpdater
+from dxenv.train.merge import ensure_merged
 
 
 def main() -> None:
@@ -69,8 +70,21 @@ def main() -> None:
     records = {r.patient_id: r for r in corpus}
     print(f"eval split verified against its committed hash; {json.dumps(splits.summary())}")
 
+    # The sampler and the trainer must share one base, or every synced LoRA delta is
+    # applied to weights it was not trained against. Runs 1 and 2 served `raw base +
+    # delta` from step 1 on -- the SFT policy was dropped at the first sync. Merge the SFT
+    # adapter once and point BOTH at the merged weights; the KL reference is then the
+    # merged model with the trainable adapter disabled, which is exactly SFT.
+    model = args.model
+    if args.reference_adapter is not None and not args.dry_run:
+        merged = ensure_merged(args.model, args.reference_adapter)
+        print(f"[dxenv] sampler and trainer base: {merged} "
+              f"({args.model} + {args.reference_adapter}, merged)", flush=True)
+        model = str(merged)
+
     cfg = GRPOConfig(
-        run_id=args.run_id, model=args.model, reference_adapter=args.reference_adapter,
+        run_id=args.run_id, model=model,
+        reference_adapter=None if model != args.model else args.reference_adapter,
         k=args.k, patients_per_step=args.patients_per_step, max_steps=args.steps,
         temperature=args.temperature, learning_rate=args.lr, kl_coef=args.kl_coef,
         seed=args.seed, root=args.root,
@@ -85,8 +99,8 @@ def main() -> None:
             return LLMPolicy(backend=RandomBackend(seed=seed), seed=seed)
     else:
         backend = VLLMBackend(
-            model=args.model,
-            lora_path=str(args.reference_adapter) if args.reference_adapter else None,
+            model=model,
+            lora_path=None,   # step 0 samples the merged SFT weights themselves
             # Measured, not guessed: at 0.55 the engine held 45.6GiB and the trainer OOMed
             # with 6.3GiB free needing 6.9. The trainer carries the 7B in bf16 plus LoRA
             # optimiser state plus activations, and it is the side that cannot be made

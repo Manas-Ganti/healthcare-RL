@@ -748,6 +748,25 @@ def _slim(tags: dict[str, Any]) -> dict[str, Any]:
 # ------------------------------------------------------------------ torch updater ----
 
 
+def assert_sampler_shares_base(config: GRPOConfig, backend: Any) -> None:
+    """Refuse a trainer that merges an adapter the sampler does not have.
+
+    With `reference_adapter` set, the trainer trains a LoRA on top of base+SFT. Synced to a
+    sampler whose base is the raw model, that LoRA is applied to the wrong weights and the
+    SFT policy disappears at the first sync, with no error anywhere -- runs 1 and 2 both
+    trained the prompted model this way. Merge first (`dxenv.train.merge.ensure_merged`)
+    and pass the merged directory as `model` with `reference_adapter=None`.
+    """
+    if config.reference_adapter is not None and backend is not None:
+        raise TrainingError(
+            f"reference_adapter={config.reference_adapter} would be merged into the "
+            "trainer's base but not the sampler's, so every synced LoRA would be applied "
+            "to the wrong weights and rollouts would come from the raw base model after "
+            "step 0. Use dxenv.train.merge.ensure_merged and pass the merged directory "
+            "as `model` with reference_adapter=None (scripts/train_grpo.py does this)."
+        )
+
+
 @dataclass(slots=True)
 class TorchLoRAUpdater:  # pragma: no cover - CUDA only
     """The real gradient step: LoRA + clipped surrogate + k3 KL to the SFT reference.
@@ -766,6 +785,7 @@ class TorchLoRAUpdater:  # pragma: no cover - CUDA only
     def _lazy(self) -> None:
         if self._model is not None:
             return
+        assert_sampler_shares_base(self.config, self.backend)
         try:
             import torch
             from peft import LoraConfig, PeftModel, get_peft_model
