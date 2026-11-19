@@ -145,6 +145,15 @@ class VLLMBackend:
 
     model: str
     lora_path: str | None = None
+    enable_lora: bool = False
+    """Reserve LoRA slots even with no adapter yet. vLLM fixes this at engine startup.
+
+    A GRPO sampler starts from the merged SFT weights with NO adapter (step 0) and only
+    gets one at the first sync. Deriving `enable_lora` from `lora_path` alone built that
+    engine without LoRA support, and the first post-sync request died with "LoRA is not
+    enabled!" -- after the merge, the engine start and a full rollout step. Any caller
+    that will `reload_lora` later must set this.
+    """
     max_model_len: int = 16384
     """Context window. 8192 left only ~540 tokens of margin.
 
@@ -218,7 +227,7 @@ class VLLMBackend:
                 "max_model_len": self.max_model_len,
                 "gpu_memory_utilization": self.gpu_memory_utilization,
                 "tensor_parallel_size": self.tensor_parallel_size,
-                "enable_lora": self.lora_path is not None,
+                "enable_lora": self._lora_enabled(),
                 "max_lora_rank": 64,
             }
             # Compact JSON. vLLM permits arbitrary whitespace between tokens by default,
@@ -371,8 +380,18 @@ class VLLMBackend:
         ]
 
 
-    def reload_lora(self, path: str) -> None:  # pragma: no cover - requires CUDA
+    def _lora_enabled(self) -> bool:
+        return self.enable_lora or self.lora_path is not None
+
+    def reload_lora(self, path: str) -> None:
         """Point the sampler at freshly trained weights, under a NEW adapter id."""
+        if not self._lora_enabled():
+            # Checked here, not at the next generate(): there it surfaces as a vLLM
+            # validation error a full rollout later, and the engine cannot be fixed live.
+            raise BackendError(
+                "reload_lora on a backend built without LoRA support; construct it with "
+                "enable_lora=True (vLLM reserves LoRA slots only at engine startup)"
+            )
         self.lora_path = str(path)
         self._lora_version += 1
 

@@ -630,3 +630,24 @@ def test_engine_without_structured_outputs_config_raises(monkeypatch) -> None:
     monkeypatch.setitem(__import__("sys").modules, "vllm", v)
     with pytest.raises(BackendError, match="structured_outputs_config"):
         VLLMBackend(model="m")._lazy_engine()
+
+
+def test_grpo_sampler_without_initial_adapter_still_enables_lora(monkeypatch) -> None:
+    """GRPO run 3: the merged-base sampler had no adapter at step 0, so the engine was
+    built with enable_lora=False and the first synced LoRA was rejected."""
+    from dxenv.policy.llm import VLLMBackend
+
+    v, seen = _fake_llm_module(accepts_cfg=True)
+    monkeypatch.setitem(__import__("sys").modules, "vllm", v)
+    VLLMBackend(model="m", lora_path=None, enable_lora=True)._lazy_engine()
+    assert seen["kw"]["enable_lora"] is True
+
+
+def test_reload_lora_without_lora_support_raises() -> None:
+    from dxenv.policy.llm import BackendError, VLLMBackend
+
+    with pytest.raises(BackendError, match="enable_lora=True"):
+        VLLMBackend(model="m").reload_lora("/x")
+    b = VLLMBackend(model="m", enable_lora=True)
+    b.reload_lora("/x")
+    assert b.lora_path == "/x"

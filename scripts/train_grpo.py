@@ -101,6 +101,7 @@ def main() -> None:
         backend = VLLMBackend(
             model=model,
             lora_path=None,   # step 0 samples the merged SFT weights themselves
+            enable_lora=True,  # ...but every sync after it loads a LoRA onto them
             # Measured, not guessed: at 0.55 the engine held 45.6GiB and the trainer OOMed
             # with 6.3GiB free needing 6.9. The trainer carries the 7B in bf16 plus LoRA
             # optimiser state plus activations, and it is the side that cannot be made
